@@ -47,17 +47,21 @@ function effCoeff(state, financed) {
   return baseCoeff(state, financed) * (state.periodicite === "M" ? MAJ_MENSUEL : 1);
 }
 
-/* Rachat du contrat actuel. */
+/* Rachat du contrat actuel — isolé en 2 composantes : la location (solde des
+   loyers, majoré de 10 % pour un prospect) et la maintenance (maintenance +
+   abonnements, uniquement pour un prospect). */
 function rachatMachine(m) {
   const loyer = num(m.loyerActuel), trim = num(m.trimRestants);
   const base = loyer * trim;
-  if (!m.prospect) return base; // client Levad : solde des loyers restants
+  if (!m.prospect) return { location: base, maintenance: 0, total: base }; // client Levad : solde des loyers restants
   // prospect (chez un concurrent) : loyers + 10% + maintenance + abonnements.
   // Le rachat se base sur le volume le plus élevé des 2.
   const maintNB = maxVol(m.forfaitNB, m.depassNB, m.volNBreel) * num(m.ccNBactuel);
   const maintCoul = maxVol(m.forfaitCoul, m.depassCoul, m.volCoulReel) * num(m.ccCoulActuel);
   const abos = (m.services || []).reduce((a, s) => a + num(s.sa), 0);
-  return base * 1.10 + (maintNB + maintCoul + abos) * trim;
+  const location = base * 1.10;
+  const maintenance = (maintNB + maintCoul + abos) * trim;
+  return { location, maintenance, total: location + maintenance };
 }
 
 /* Montant financé déduit d'un loyer trimestriel cible (mode "loyer -> marge").
@@ -85,8 +89,12 @@ function financedFromLoyer(state, loyerT) {
 }
 
 function computeMachine(m, state) {
-  const rachat = rachatMachine(m);
-  const prixComplet = num(m.prixMachine) + num(m.livraison) + num(m.portageLivraison) +
+  const rachatObj = rachatMachine(m);
+  const rachat = rachatObj.total;
+  // dérogation Mikael : remise exceptionnelle (généralement négative) déduite
+  // du prix machine dans le calcul du montant financé.
+  const prixMachineEff = num(m.prixMachine) + num(m.derogationMikael);
+  const prixComplet = prixMachineEff + num(m.livraison) + num(m.portageLivraison) +
                       num(m.retrait) + num(m.portageRetrait) + num(m.installation);
   const div = perDivisor(state);
 
@@ -104,6 +112,9 @@ function computeMachine(m, state) {
     spLoyer = financed * effCoeff(state, financed) / 100;
   }
   const coeffT = baseCoeff(state, financed);
+  // marge finale du dossier : la marge financée + les frais de livraison
+  // facturés à part (non financés, mais qui restent du profit du dossier).
+  const margeFinale = marge + num(m.fraisLivraisonFacturer);
 
   // volume AFFICHÉ (réel) : dépassement -> forfait+dépass, sinon volume réel
   const billedNB = billedMaint(m.forfaitNB, m.depassNB, m.volNBreel);
@@ -131,7 +142,9 @@ function computeMachine(m, state) {
   const spTotal = spLoyer + spMaintNB + spMaintCoul + spServ;
 
   return {
-    rachat, financed, coeffT, prixComplet, marge, spLoyerT: spLoyer,
+    rachat, rachatLocation: rachatObj.location, rachatMaintenance: rachatObj.maintenance,
+    financed, coeffT, prixComplet, prixMachineEff, marge, margeFinale, spLoyerT: spLoyer,
+    fraisLivraisonFacturer: num(m.fraisLivraisonFacturer),
     cadeaux: num(m.cadeaux), cadeauxLabel: m.cadeauxLabel || "",
     billedNB, billedCoul, services,
     sa: {
@@ -154,10 +167,14 @@ function computeAll(state) {
   const sum = (side, key) => rows.reduce((a, r) => a + r[side][key], 0);
   const saTotal = sum("sa", "total"), spTotal = sum("sp", "total");
   const savingQuarter = saTotal - spTotal;
+  const spLoyerTotal = sum("sp", "loyer");
+  // coût total de la maintenance proposée : coûts page + abonnements (hors loyer)
+  const spMaintTotal = sum("sp", "maintNB") + sum("sp", "maintCoul") + sum("sp", "servTotal");
   return {
     rows, saTotal, spTotal,
     savingQuarter, savingYear: savingQuarter * 4,
-    spLoyerTotal: sum("sp", "loyer"),
+    savingPct: saTotal ? (savingQuarter / saTotal) * 100 : 0,
+    spLoyerTotal, spMaintTotal,
     rachatTotal: rows.reduce((a, r) => a + r.rachat, 0),
     durationTrim: state.durationTrim,
     divisor: state.periodicite === "M" ? 3 : 1,

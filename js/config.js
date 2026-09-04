@@ -109,6 +109,7 @@ function defaultMachine() {
     // ---- Solution proposée (SP) ----
     proposedModel: "",
     prixMachine: 0,
+    derogationMikael: 0,    // remise exceptionnelle (négative) déduite du prix machine dans les calculs
     livraison: 0, portageLivraison: 0,
     retrait: 0, portageRetrait: 0,
     installation: 0,
@@ -116,6 +117,7 @@ function defaultMachine() {
     marge: 0,
     loyerCible: 0,          // loyer proposé saisi (par période) en mode "loyer"
     cadeaux: 0, cadeauxLabel: "",
+    fraisLivraisonFacturer: 0,  // frais de livraison facturés au client, s'ajoute à la marge du dossier
     ccNBpropose: 0, ccCoulPropose: 0,
     spVolNB: "", spVolCoul: "",   // volumes proposés : "" = auto (facturé), sinon override
     machineConfig: null,   // { category, machine, items:[{designation,price,qty}] } — configurateur Canon
@@ -124,7 +126,11 @@ function defaultMachine() {
 
 function defaultState() {
   return {
-    client: { name: "", contact: "", addr1: "", addr2: "", date: todayISO() },
+    client: {
+      name: "", contact: "", addr1: "", addr2: "", date: todayISO(),
+      phone: "", mobile: "", email: "",
+      deliveryCode: "", floor: "", elevator: false,
+    },
     company: { ...DEFAULT_COMPANY },
     leaser: "GRENKE",
     durationTrim: 21,       // trimestres

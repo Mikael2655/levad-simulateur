@@ -53,9 +53,65 @@ function closeUsersModal() {
 }
 
 /* -------------------- Configurateur Canon -------------------- */
+const DEFAULT_CFG_CATEGORY = "OFFICE - SYSTEMES D'IMPRESSION COULEUR";
+const DEFAULT_CFG_MACHINE = "imageFORCE C611";
 function configItemKey(section, designation) { return section + "||" + designation; }
 function configTotal() {
   return Object.values(CONFIG_DRAFT.items).reduce((a, it) => a + it.price * it.qty, 0);
+}
+function configMachine() {
+  const machines = CATALOG && CATALOG[CONFIG_DRAFT.category];
+  return machines && machines.find((x) => x.name === CONFIG_DRAFT.machine);
+}
+function configAllItems(mach) {
+  return mach ? [...mach.engine, ...mach.accessories] : [];
+}
+function configSectionOf(mach, item) {
+  return mach && mach.engine.includes(item) ? "engine" : "accessories";
+}
+function configCheckedDesigs() {
+  return Object.values(CONFIG_DRAFT.items).map((it) => it.designation);
+}
+
+/* Repérage « OBLIGATOIRE : … » / « INCOMPATIBILITE : … » dans le descriptif
+   (texte OCR, cf. tools/parse_canon_catalog.py) pour bloquer les sélections
+   incompatibles et cocher automatiquement les articles requis. */
+function normDesig(s) {
+  return String(s || "").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, " ").trim();
+}
+function matchDesignation(phrase, allItems) {
+  const np = normDesig(phrase);
+  if (!np) return null;
+  let best = null;
+  for (const it of allItems) {
+    const nd = normDesig(it.designation);
+    if (nd && (nd === np || np.includes(nd) || nd.includes(np))) {
+      if (!best || nd.length > normDesig(best.designation).length) best = it;
+    }
+  }
+  return best;
+}
+function extractClause(description, label) {
+  if (!description) return "";
+  const re = new RegExp(label + "\\s*:?\\s*([\\s\\S]*?)(?=(?:OBLIGATOIRE|INCOMPATIBILITE)\\s*:|$)", "i");
+  const m = description.match(re);
+  return m ? m[1].trim() : "";
+}
+function incompatibleDesignations(description, allItems) {
+  const clause = extractClause(description, "INCOMPATIBILITE");
+  if (!clause) return [];
+  return clause.split(/\s+ET\s+|\/|,/i).map((p) => matchDesignation(p.trim(), allItems))
+    .filter(Boolean).map((it) => it.designation);
+}
+function obligatoireGroups(description, allItems) {
+  const clause = extractClause(description, "OBLIGATOIRE").replace(/\.\s*$/, "");
+  if (!clause) return [];
+  const parenGroups = [...clause.matchAll(/\(([^()]*)\)/g)].map((m) => m[1]);
+  const rawGroups = parenGroups.length ? parenGroups : clause.split(/\s+ET\s+/i);
+  return rawGroups
+    .map((g) => g.split(/\s+OU\s+/i).map((p) => matchDesignation(p.trim(), allItems)).filter(Boolean).map((it) => it.designation))
+    .filter((g) => g.length);
 }
 async function openConfigModal(mid) {
   if (!CATALOG) {
@@ -65,7 +121,8 @@ async function openConfigModal(mid) {
   const m = mById(mid); if (!m) return;
   CONFIG_MID = mid;
   const cfg = m.machineConfig;
-  CONFIG_DRAFT = { category: (cfg && cfg.category) || Object.keys(CATALOG)[0] || "", machine: (cfg && cfg.machine) || "", items: {} };
+  const defaultCat = CATALOG[DEFAULT_CFG_CATEGORY] ? DEFAULT_CFG_CATEGORY : Object.keys(CATALOG)[0] || "";
+  CONFIG_DRAFT = { category: (cfg && cfg.category) || defaultCat, machine: (cfg && cfg.machine) || "", items: {} };
   if (cfg) (cfg.items || []).forEach((it) => {
     // la section (moteur/accessoire) n'est pas stockée par article : on la retrouve
     // en cherchant la désignation dans le catalogue de la machine sélectionnée.
@@ -108,7 +165,10 @@ function renderConfigBody() {
   closeConfigInfo();
   const cats = Object.keys(CATALOG);
   const machines = CATALOG[CONFIG_DRAFT.category] || [];
-  if (!CONFIG_DRAFT.machine && machines.length) CONFIG_DRAFT.machine = machines[0].name;
+  if (!CONFIG_DRAFT.machine && machines.length) {
+    const def = machines.find((x) => x.name === DEFAULT_CFG_MACHINE);
+    CONFIG_DRAFT.machine = (def || machines[0]).name;
+  }
   const mach = machines.find((x) => x.name === CONFIG_DRAFT.machine);
   body.innerHTML = `
     <div class="card-head"><h2>Configurateur — Canon</h2>
@@ -186,6 +246,7 @@ const SA_COUL = [
 const SP_MAIN = [
   { k: "proposedModel", label: "Machine proposée", t: TXT, wide: true },
   { k: "prixMachine", label: "Prix machine (€)", t: NUM },
+  { k: "derogationMikael", label: "Dérogation Mikael, négatif (€)", t: NUM },
   { k: "installation", label: "Installation (€)", t: NUM },
   { k: "livraison", label: "Livraison (dont portage) (€)", t: NUM },
   { k: "retrait", label: "Retrait (dont portage) (€)", t: NUM },
@@ -256,6 +317,17 @@ function renderApp() {
         ${topField("client", "addr1", "Adresse", TXT)}
         ${topField("client", "addr2", "Code postal & ville", TXT)}
         ${topField("client", "date", "Date", 'type="date"')}
+        ${topField("client", "phone", "Téléphone", TXT)}
+        ${topField("client", "mobile", "Portable", TXT)}
+        ${topField("client", "email", "Email", TXT)}
+      </div>
+      <div class="subgrid"><h4>Détails livraison</h4>
+        <div class="grid">
+          ${topField("client", "deliveryCode", "Code / interphone", TXT)}
+          ${topField("client", "floor", "Étage", TXT)}
+          <label class="fld chk"><input type="checkbox" data-scope="client" data-key="elevator" ${s.client.elevator ? "checked" : ""}>
+            <span>Avec ascenseur</span></label>
+        </div>
       </div>
     </section>
 
@@ -303,6 +375,7 @@ function renderApp() {
     <section class="card actions">
       <button class="btn primary" data-action="export-xlsx">⬇︎ Excel SA/SP</button>
       <button class="btn primary" data-action="export-pptx">⬇︎ Powerpoint Proposition commerciale</button>
+      <button class="btn primary" data-action="export-pdf">⬇︎ PDF Descriptif</button>
       <button class="btn ghost" data-action="reset">Réinitialiser</button>
       <span id="status" class="status"></span>
     </section>`;
@@ -422,6 +495,7 @@ function machineCard(m, i) {
               : `<label class="fld money"><span>Marge commerciale</span>
                    ${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="machine" data-mid="${m.id}" data-key="marge" value="${esc(m.marge)}">`)}</label>
                  <div class="fld"><span>Loyer proposé (calculé) ${perShort(STATE)}</span><div class="ro" id="ro-calc-${m.id}"></div></div>`}
+            ${ADMIN ? `<div class="fld"><span>Coefficient leaser</span><div class="ro" id="coeff-${m.id}"></div></div>` : ""}
           </div>
         </div>
         <div class="subgrid"><h4>Volumes proposés <small>(calcul auto · modifiables)</small></h4>
@@ -436,6 +510,11 @@ function machineCard(m, i) {
           <div class="grid">${SP_CC.map((f) => mField(m.id, f)).join("")}</div></div>
         <div class="subgrid"><h4>Service &amp; abonnements <small>(proposé)</small></h4>
           ${svcRowsSide(m, "sp")}
+        </div>
+        <div class="subgrid">
+          <label class="fld money"><span>Frais de livraison à facturer</span>
+            ${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="machine" data-mid="${m.id}" data-key="fraisLivraisonFacturer" value="${esc(m.fraisLivraisonFacturer)}">`)}</label>
+          <p class="hint">Facturé au client à part (hors financement), s'ajoute à la marge du dossier.</p>
         </div>
       </div>
     </div>
@@ -473,7 +552,9 @@ function renderResults() {
     const roR = document.getElementById("ro-rachat-" + m.id);
     if (roR) roR.textContent = eur(r.rachat);
     const roC = document.getElementById("ro-calc-" + m.id);
-    if (roC) roC.textContent = m.margeMode === "loyer" ? eur(r.marge) : eur(r.spLoyerT / div);
+    if (roC) roC.textContent = m.margeMode === "loyer" ? eur(r.margeFinale) : eur(r.spLoyerT / div);
+    const coeffEl = document.getElementById("coeff-" + m.id);
+    if (coeffEl) coeffEl.textContent = frNum(r.coeffT, 3) + " %";
     // volumes proposés auto : reflète la valeur calculée tant qu'il n'y a pas d'override
     const nbEl = document.getElementById("spvol-nb-" + m.id);
     if (nbEl && (m.spVolNB === "" || m.spVolNB == null) && document.activeElement !== nbEl) nbEl.value = Math.round(r.sp.volNB);
@@ -486,7 +567,7 @@ function renderResults() {
       <span>Prix machine : <b>${eur(num(m.prixMachine))}</b></span>
       <span>Livraison + retrait + installation : <b>${eur(logistique)}</b></span>
       <span>Cadeau / autre : <b>${eur(r.cadeaux)}</b></span>
-      <span>Marge : <b class="${r.marge < 0 ? "neg" : ""}">${eur(r.marge)}</b></span>`;
+      <span>Marge : <b class="${r.margeFinale < 0 ? "neg" : ""}">${eur(r.margeFinale)}</b></span>`;
   });
   const res = document.getElementById("results"); if (!res) return;
   const c = computeAll(STATE), div = c.divisor, eco = c.savingYear;
@@ -496,9 +577,9 @@ function renderResults() {
       <div class="tot"><span>Situation actuelle</span><b>${eur(c.saTotal / div)}</b><small>${perShort(STATE)}</small></div>
       <div class="tot"><span>Solution proposée</span><b>${eur(c.spTotal / div)}</b><small>${perShort(STATE)}</small></div>
       <div class="tot big ${eco >= 0 ? "pos" : "neg"}"><span>${eco >= 0 ? "Économie" : "Surcoût"} annuel</span>
-        <b>${eur(Math.abs(eco))}</b><small>${eur(Math.abs(c.savingQuarter) / div)} ${perShort(STATE)}</small></div>
+        <b>${eur(Math.abs(eco))}</b><small>${eur(Math.abs(c.savingQuarter) / div)} ${perShort(STATE)} · ${frNum(Math.abs(c.savingPct), 1)} %</small></div>
     </div>
-    <p class="muted small">Loyer proposé total : ${eur(c.spLoyerTotal / div)} ${perShort(STATE)} · Rachat total : ${eur(c.rachatTotal)} · ${c.durationTrim} trimestres · ${esc(STATE.leaser)}${(ADMIN && COEFF_UNLOCKED) ? " · coeff " + frNum(baseCoeff(STATE, c.rows[0] ? c.rows[0].financed : 0), 3) : ""}</p>`;
+    <p class="muted small">Loyer proposé total : ${eur(c.spLoyerTotal / div)} ${perShort(STATE)} · Coût total de la maintenance : ${eur(c.spMaintTotal / div)} ${perShort(STATE)} · ${c.durationTrim} trimestres · ${esc(STATE.leaser)}</p>`;
 }
 
 /* -------------------- Événements -------------------- */
@@ -558,9 +639,44 @@ document.addEventListener("change", (e) => {
   }
   if (t.dataset && t.dataset.cfg === "check") {
     const key = t.dataset.key;
-    if (t.checked) CONFIG_DRAFT.items[key] = { designation: t.dataset.desig, price: num(t.dataset.price), qty: 1 };
-    else delete CONFIG_DRAFT.items[key];
+    const desig = t.dataset.desig;
+    if (!t.checked) {
+      delete CONFIG_DRAFT.items[key];
+      renderConfigBody();
+      return;
+    }
+    const mach = configMachine();
+    const allItems = configAllItems(mach);
+    const thisItem = allItems.find((it) => it.designation === desig);
+    // incompatibilité déclarée par cet article, ou par un article déjà coché
+    let conflict = thisItem ? incompatibleDesignations(thisItem.description, allItems).find((d) => configCheckedDesigs().includes(d)) : null;
+    if (!conflict) {
+      conflict = configCheckedDesigs().find((d) => {
+        const other = allItems.find((it) => it.designation === d);
+        return other && incompatibleDesignations(other.description, allItems).includes(desig);
+      });
+    }
+    if (conflict) {
+      t.checked = false;
+      alert(`« ${desig} » est incompatible avec « ${conflict} », déjà sélectionné. Décochez-le d'abord si besoin.`);
+      return;
+    }
+    CONFIG_DRAFT.items[key] = { designation: desig, price: num(t.dataset.price), qty: 1 };
+    // obligatoire : coche automatiquement les articles requis (1 par groupe "ou")
+    const autoChecked = [];
+    if (thisItem && mach) {
+      obligatoireGroups(thisItem.description, allItems).forEach((group) => {
+        if (group.some((d) => configCheckedDesigs().includes(d))) return;
+        const pickDesig = group[0];
+        const pickItem = allItems.find((it) => it.designation === pickDesig);
+        if (!pickItem) return;
+        const pkey = configItemKey(configSectionOf(mach, pickItem), pickDesig);
+        CONFIG_DRAFT.items[pkey] = { designation: pickDesig, price: pickItem.price, qty: 1 };
+        autoChecked.push(pickDesig);
+      });
+    }
     renderConfigBody();
+    if (autoChecked.length) alert(`Obligatoire avec « ${desig} » — coché(e) automatiquement : ${autoChecked.join(", ")}.`);
     return;
   }
   if (t.tagName !== "SELECT") return;
@@ -599,6 +715,9 @@ document.addEventListener("click", async (e) => {
       flash("Génération du PowerPoint…");
       try { await exportPptx(STATE, computeAll(STATE)); flash("PowerPoint généré."); }
       catch (err) { flash("Erreur PowerPoint : " + err.message, true); console.error(err); } break;
+    case "export-pdf":
+      try { await exportPdf(STATE, computeAll(STATE)); flash("PDF généré."); }
+      catch (err) { flash("Erreur PDF : " + err.message, true); console.error(err); } break;
     case "admin-unlock": COEFF_UNLOCKED = true; renderAdmin(); break;
     case "admin-lock": COEFF_UNLOCKED = false; renderAdmin(); break;
     case "admin-clear-override": STATE.coeffOverride = ""; saveState(STATE); renderAdmin(); renderResults(); break;
