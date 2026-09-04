@@ -1,0 +1,26 @@
+/* Règles de sécurité Firestore — Simulateur LEVAD.
+ *
+ * À coller dans la console Firebase : Firestore Database → Règles → Publier.
+ *
+ * Modèle « confort » : lecture/écriture réservées aux utilisateurs
+ * authentifiés (connexion anonyme automatique de l'application). La
+ * séparation par commercial et le rôle administrateur sont gérés côté
+ * application (identifiant + mot de passe). C'est adapté à une équipe
+ * interne de confiance.
+ *
+ * ⚠️ Pour un cloisonnement techniquement infaillible (empêcher un
+ * utilisateur de lire les données d'un autre au niveau de la base),
+ * il faudrait de vrais comptes Firebase Auth + des rôles (custom
+ * claims) et des Cloud Functions.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null;
+    }
+    match /simulations/{sid} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
