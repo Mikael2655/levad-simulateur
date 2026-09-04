@@ -662,11 +662,14 @@ document.addEventListener("change", (e) => {
       return;
     }
     CONFIG_DRAFT.items[key] = { designation: desig, price: num(t.dataset.price), qty: 1 };
-    // obligatoire : coche automatiquement les articles requis (1 par groupe "ou")
+    // obligatoire : un seul article requis -> coché automatiquement ; un choix entre
+    // plusieurs (groupe "ou") -> seulement un message, l'utilisateur choisit lui-même
     const autoChecked = [];
+    const choices = [];
     if (thisItem && mach) {
       obligatoireGroups(thisItem.description, allItems).forEach((group) => {
         if (group.some((d) => configCheckedDesigs().includes(d))) return;
+        if (group.length > 1) { choices.push(group); return; }
         const pickDesig = group[0];
         const pickItem = allItems.find((it) => it.designation === pickDesig);
         if (!pickItem) return;
@@ -676,7 +679,10 @@ document.addEventListener("change", (e) => {
       });
     }
     renderConfigBody();
-    if (autoChecked.length) alert(`Obligatoire avec « ${desig} » — coché(e) automatiquement : ${autoChecked.join(", ")}.`);
+    const msgs = [];
+    if (autoChecked.length) msgs.push(`coché(e) automatiquement : ${autoChecked.join(", ")}`);
+    choices.forEach((group) => msgs.push(`à choisir : ${group.join(" ou ")}`));
+    if (msgs.length) alert(`Obligatoire avec « ${desig} » — ${msgs.join(" · ")}.`);
     return;
   }
   if (t.tagName !== "SELECT") return;
