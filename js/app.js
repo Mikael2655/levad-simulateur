@@ -179,6 +179,9 @@ function renderConfigBody() {
       <label class="fld"><span>Machine</span>
         <select id="cfg-machine">${machines.map((mm) => `<option value="${esc(mm.name)}" ${mm.name === CONFIG_DRAFT.machine ? "selected" : ""}>${esc(mm.name)}</option>`).join("")}</select></label>
     </div>
+    <div class="cfg-top-actions">
+      <button class="btn primary small" data-action="apply-config">Valider → Prix machine</button>
+    </div>
     ${mach ? `
     <div class="subgrid"><h4>Moteur / solution d'impression</h4>
       <div class="cfg-list">${mach.engine.map((it) => configItemRow("engine", it)).join("") || '<span class="muted small">Aucun article.</span>'}</div>

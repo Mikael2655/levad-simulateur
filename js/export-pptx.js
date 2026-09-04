@@ -125,5 +125,5 @@ async function exportPptx(state, calc) {
     mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     compression: "DEFLATE",
   });
-  downloadBlob(blob, fileName(state, "pptx"));
+  downloadBlob(blob, fileName(state, "pptx", "Proposition"));
 }

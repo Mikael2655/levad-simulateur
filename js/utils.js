@@ -16,9 +16,9 @@ function slugify(s) {
     .replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "client";
 }
 
-function fileName(state, ext) {
+function fileName(state, ext, label) {
   const d = (state.client.date || todayISO()).replace(/-/g, "");
-  return `Proposition_${slugify(state.client.name)}_${d}.${ext}`;
+  return `${label || "Proposition"}_${slugify(state.client.name)}_${d}.${ext}`;
 }
 
 /* Fusion défensive d'un état chargé avec les valeurs par défaut (schéma évolutif). */

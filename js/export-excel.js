@@ -128,5 +128,5 @@ async function exportExcel(state, calc) {
 
   const buf = await wb.xlsx.writeBuffer();
   downloadBlob(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
-    fileName(state, "xlsx"));
+    fileName(state, "xlsx", "SA-SP"));
 }
