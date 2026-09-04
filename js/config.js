@@ -130,6 +130,7 @@ function defaultState() {
       name: "", contact: "", addr1: "", addr2: "", date: todayISO(),
       phone: "", mobile: "", email: "",
       deliveryCode: "", floor: "", elevator: false,
+      logo: "",               // logo client (data URL), inséré page 1 du PowerPoint
     },
     company: { ...DEFAULT_COMPANY },
     leaser: "GRENKE",

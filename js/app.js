@@ -268,6 +268,30 @@ function mById(id) { return STATE.machines.find((m) => m.id === id); }
 function getPath(o, p) { return p.split(".").reduce((a, k) => (a ? a[k] : undefined), o); }
 function setPath(o, p, v) { const a = p.split("."); const l = a.pop(); a.reduce((x, k) => x[k], o)[l] = v; }
 
+/* Charge le logo client depuis un fichier, le redimensionne (max 500 px de
+   large) et le stocke en data URL PNG — évite de gonfler le stockage
+   (localStorage / Firestore) avec une image trop lourde. */
+function loadClientLogo(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, 500 / img.naturalWidth);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      STATE.client.logo = canvas.toDataURL("image/png");
+      saveState(STATE);
+      renderApp();
+    };
+    img.onerror = () => flash("Image illisible.", true);
+    img.src = reader.result;
+  };
+  reader.onerror = () => flash("Impossible de lire le fichier.", true);
+  reader.readAsDataURL(file);
+}
+
 /* Enveloppe un champ numérique en € : retire « (€) » du libellé et affiche
    le symbole € dans la case. */
 function euroWrap(inp) { return `<div class="money-wrap">${inp}<span class="euro">€</span></div>`; }
@@ -330,6 +354,13 @@ function renderApp() {
           ${topField("client", "floor", "Étage", TXT)}
           <label class="fld chk"><input type="checkbox" data-scope="client" data-key="elevator" ${s.client.elevator ? "checked" : ""}>
             <span>Avec ascenseur</span></label>
+        </div>
+      </div>
+      <div class="subgrid"><h4>Logo client <small>(inséré page 1 du PowerPoint)</small></h4>
+        <div class="logo-row">
+          ${s.client.logo ? `<img class="logo-preview" src="${esc(s.client.logo)}" alt="Logo client">` : ""}
+          <input type="file" accept="image/png,image/jpeg" id="client-logo-input">
+          ${s.client.logo ? `<button class="btn ghost small" data-action="remove-client-logo">✕ Retirer</button>` : ""}
         </div>
       </div>
     </section>
@@ -633,6 +664,11 @@ document.addEventListener("input", (e) => {
 });
 document.addEventListener("change", (e) => {
   const t = e.target;
+  if (t.id === "client-logo-input") {
+    const file = t.files && t.files[0];
+    if (file) loadClientLogo(file);
+    return;
+  }
   if (t.dataset && t.dataset.scope === "user") { // édition d'un profil utilisateur (au blur)
     updateUserProfile(t.dataset.uid, { [t.dataset.key]: t.value });
     if (CURRENT_USER && t.dataset.uid === CURRENT_USER.id) { CURRENT_USER[t.dataset.key] = t.value; if (t.dataset.key === "name") updateTopbar(); }
@@ -759,6 +795,7 @@ document.addEventListener("click", async (e) => {
       flash("Prix machine mis à jour depuis le configurateur.");
       break;
     }
+    case "remove-client-logo": STATE.client.logo = ""; saveState(STATE); renderApp(); break;
     case "login": await doLogin(); break;
     case "logout": logout(); CURRENT_USER = null; ADMIN = false; STATE = null; renderLogin(); updateTopbar(); break;
     case "new-sim": {

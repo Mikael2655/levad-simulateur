@@ -9,7 +9,7 @@ Proposée (SP)**, puis génère :
 
 - le **fichier Excel** « SA / SP type » (étude comparative de coûts, à la mise
   en forme du modèle fourni) ;
-- la **présentation PowerPoint** de l'offre (votre modèle complet de 31 slides,
+- la **présentation PowerPoint** de l'offre (votre modèle complet de 29 slides,
   charte conservée).
 
 Aucune donnée n'est envoyée : tout reste dans le navigateur (localStorage).
