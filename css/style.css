@@ -53,6 +53,18 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
   color: var(--muted); font-size: 14px; pointer-events: none; }
 .fld.chk { flex-direction: row; align-items: center; gap: 8px; grid-column: 1 / -1; }
 .fld.chk input { width: auto; }
+
+/* Ligne compacte (Prix machine, Dérogation, Installation, Livraison, Retrait) :
+   tient toujours sur une seule ligne, les champs se resserrent plutôt que de
+   passer à la ligne suivante. */
+.sp-price-row { display: flex; flex-wrap: nowrap; gap: 6px; }
+.sp-price-row > .fld, .sp-price-row > .fld-with-btn { flex: 1 1 0; min-width: 0; }
+.sp-price-row .fld > span { font-size: 10.5px; line-height: 1.2; }
+.sp-price-row input { font-size: 12px; padding: 6px 5px; }
+.sp-price-row .money-wrap input { padding-right: 16px; }
+.sp-price-row .money-wrap .euro { right: 5px; font-size: 11px; }
+.fld-with-btn { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fld-with-btn .cfg-inline { white-space: nowrap; font-size: 10.5px; padding: 4px 5px; overflow: hidden; text-overflow: ellipsis; }
 .coeff-show { font-size: 18px; font-weight: 700; padding: 6px 0; color: var(--brand); }
 
 .machine { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 14px; }

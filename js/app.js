@@ -477,8 +477,13 @@ function machineCard(m, i) {
       </div>
       <div class="col">
         <h3>Solution proposée</h3>
-        <div class="grid">${SP_MAIN.map((f) => mField(m.id, f)).join("")}</div>
-        <button class="btn small" data-action="open-config" data-mid="${m.id}">🛒 Configurateur Canon${m.machineConfig && m.machineConfig.machine ? " — " + esc(m.machineConfig.machine) : ""}</button>
+        <div class="grid">${mField(m.id, SP_MAIN[0])}</div>
+        <div class="grid sp-price-row">${SP_MAIN.slice(1).map((f) => {
+          const html = mField(m.id, f);
+          if (f.k !== "prixMachine") return html;
+          return `<div class="fld-with-btn">${html}
+            <button class="btn small cfg-inline" data-action="open-config" data-mid="${m.id}">🛒 Configurateur${m.machineConfig && m.machineConfig.machine ? " — " + esc(m.machineConfig.machine) : ""}</button></div>`;
+        }).join("")}</div>
         <div class="subgrid"><h4>Rachat, cadeau &amp; marge</h4>
           <div class="grid">
             <div class="fld"><span>Rachat (calculé)</span><div class="ro" id="ro-rachat-${m.id}"></div></div>
