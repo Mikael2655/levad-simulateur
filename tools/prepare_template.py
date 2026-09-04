@@ -125,8 +125,11 @@ def main():
     tb8 = shp(s24, "TextBox 8").text_frame
     set_para(tb8.paragraphs[1], " Durée : {{DUR_TRIM}} trimestres")
     set_para(tb8.paragraphs[2], " Périodicité {{PER_ADJ}}, terme à échoir")
-    # tableau référence machine / loyer (1 ligne, machine principale)
+    # tableau référence machine / loyer (1 ligne, machine principale) — l'en-tête
+    # "Loyer trimestriel" est statique dans la maquette : le rendre dynamique
+    # (mensuel/trimestriel selon la périodicité choisie dans le simulateur).
     tbl24 = next(s.table for s in s24.shapes if s.has_table)
+    set_para(tbl24.rows[0].cells[1].text_frame.paragraphs[0], "Loyer {{PER_ADJ_MASC_LC}}")
     set_para(tbl24.rows[1].cells[0].text_frame.paragraphs[0], "{{PROP_MACHINE_1}}")
     set_para(tbl24.rows[1].cells[1].text_frame.paragraphs[0], "{{PROP_LOYER_1}} € HT")
     # "Prix de la prestation : offerte" -> jeton (offerte, ou le montant facturé
@@ -136,10 +139,15 @@ def main():
 
     # ---- Slide 25 (tableaux SA / SP) ----
     s25 = S[24]
+    set_para(shp(s25, "TextBox 5").text_frame.paragraphs[0], "SITUATION ACTUELLE € HT / {{PER_UNIT}}")
+    set_para(shp(s25, "TextBox 6").text_frame.paragraphs[0], "SOLUTION PROPOSEE € HT / {{PER_UNIT}}")
     tables = [s.table for s in s25.shapes if s.has_table]
     mapping = {0: "TYPE", 1: "FIN", 2: "LOYER", 3: "VNB", 4: "VCOUL",
                5: "PASS", 6: "CCNB", 7: "CCCOUL", 8: "MAINT", 9: "TOTAL"}
     for tbl, pfx in zip(tables, ["SA", "SP"]):
+        # en-têtes "Loyer / Trimestriel" et "TOTAL / Trimestriel" -> dynamiques
+        set_para(tbl.rows[0].cells[2].text_frame.paragraphs[1], "{{PER_ADJ_MASC}}")
+        set_para(tbl.rows[0].cells[9].text_frame.paragraphs[1], "{{PER_ADJ_MASC}}")
         cells = tbl.rows[1].cells
         for ci, key in mapping.items():
             set_para(cells[ci].text_frame.paragraphs[0], "{{%s_%s}}" % (pfx, key))

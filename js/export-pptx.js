@@ -14,8 +14,14 @@ const SP_OFF_Y = 6671125;
 const SP_TITLE_Y = 6167707;
 
 /* Emplacement réservé au logo client sur la slide 1 (zone basse de
-   « ZoneTexte 4 », sous le nom du client) — coordonnées EMU. */
-const LOGO_BOX = { x: 645300, y: 1357137, maxW: 2367000, maxH: 517218 };
+   « ZoneTexte 4 », sous le nom du client) — coordonnées EMU. Hauteur cible
+   légèrement supérieure à celle du logo LEVAD de la même page (779564 EMU,
+   « Image 16 ») pour que le logo client ne paraisse pas plus petit ; la
+   largeur suit le ratio de l'image, plafonnée pour ne pas déborder sur le
+   reste de la page de garde. */
+const LOGO_X = 645300, LOGO_Y = 1357137;
+const LOGO_TARGET_H = 800000;
+const LOGO_MAX_W = 3600000;
 
 function xmlEsc(v) {
   return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -140,10 +146,10 @@ async function insertClientLogo(zip, dataUrl) {
 
   let { w: nw, h: nh } = await imageNaturalSize(dataUrl);
   if (!nw || !nh) { nw = 1; nh = 1; }
-  const scale = Math.min(LOGO_BOX.maxW / nw, LOGO_BOX.maxH / nh);
-  const cx = Math.round(nw * scale), cy = Math.round(nh * scale);
-  const x = Math.round(LOGO_BOX.x + (LOGO_BOX.maxW - cx) / 2);
-  const y = Math.round(LOGO_BOX.y + (LOGO_BOX.maxH - cy) / 2);
+  let scale = LOGO_TARGET_H / nh;
+  let cx = Math.round(nw * scale), cy = LOGO_TARGET_H;
+  if (cx > LOGO_MAX_W) { scale = LOGO_MAX_W / nw; cx = LOGO_MAX_W; cy = Math.round(nh * scale); }
+  const x = LOGO_X, y = LOGO_Y;
 
   const mediaName = `clientlogo.${ext}`;
   zip.file(`ppt/media/${mediaName}`, bytes);
