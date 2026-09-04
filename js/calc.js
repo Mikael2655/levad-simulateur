@@ -199,8 +199,10 @@ function moneySmart(v, ht) {
 }
 function eur(v, dec = 2) { return frNum(v, dec) + " €"; }
 function pages(v) { return num(v).toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " Pages"; }
-function ccFmt(v) { return num(v).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 6 }) + " €"; }
-function ccPlain(v) { return num(v).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 6 }); }
+/* Coût page : pas de décimales forcées, s'arrête au dernier chiffre utile
+   (ex. 0,05 € plutôt que 0,050000 €). */
+function ccFmt(v) { return num(v).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 6 }) + " €"; }
+function ccPlain(v) { return num(v).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 6 }); }
 
 /* -------- Email & téléphone du commercial -------- */
 function autoEmail(name) {

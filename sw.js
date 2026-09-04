@@ -2,7 +2,7 @@
    jour), « cache d'abord » pour les gros fichiers statiques qui ne changent
    qu'à une nouvelle version (vendor/*, template PowerPoint, logo) — sinon
    ces ~7 Mo sont retéléchargés à chaque rechargement de page. */
-const CACHE = "proposition-v15";
+const CACHE = "proposition-v16";
 const CORE = [
   "./",
   "index.html",

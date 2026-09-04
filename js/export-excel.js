@@ -11,10 +11,12 @@ const GREEN_LT = "FFE9F0E9";
 
 function lineFor(side, div) {
   // renvoie [ [désig, qté, pu, total] ... ] pour un côté (sa/sp)
+  // qté arrondie à l'unité (la division par 3 en mensuel donne sinon des
+  // volumes de pages avec des décimales).
   const out = [];
   out.push(["Location — " + side.model, 1, side.loyer / div, side.loyer / div]);
-  if (side.volNB || side.maintNB) out.push(["Impressions N/B", side.volNB / div, side.ccNB, side.maintNB / div]);
-  if (side.volCoul || side.maintCoul) out.push(["Impressions couleurs", side.volCoul / div, side.ccCoul, side.maintCoul / div]);
+  if (side.volNB || side.maintNB) out.push(["Impressions N/B", Math.round(side.volNB / div), side.ccNB, side.maintNB / div]);
+  if (side.volCoul || side.maintCoul) out.push(["Impressions couleurs", Math.round(side.volCoul / div), side.ccCoul, side.maintCoul / div]);
   return out;
 }
 
@@ -45,7 +47,8 @@ async function exportExcel(state, calc) {
 
   const center = { horizontal: "center", vertical: "middle", wrapText: true };
   const money = '#,##0.00" €"';
-  const ccFmtX = '#,##0.000000" €"';
+  const ccFmtX = '#,##0.######" €"'; // coût page : décimales optionnelles, sans 0 inutiles
+  const qteFmtX = "#,##0"; // quantité (pages) : entier
   const setBorder = (cell) => (cell.border = {
     top: { style: "thin", color: { argb: "FFBFC8BF" } }, bottom: { style: "thin", color: { argb: "FFBFC8BF" } },
     left: { style: "thin", color: { argb: "FFBFC8BF" } }, right: { style: "thin", color: { argb: "FFBFC8BF" } },
@@ -78,6 +81,7 @@ async function exportExcel(state, calc) {
     const cD = ws.getCell(col0[0] + row), cQ = ws.getCell(col0[1] + row), cP = ws.getCell(col0[2] + row), cT = ws.getCell(col0[3] + row);
     cD.value = desig; cD.alignment = center; cD.font = { size: 12 };
     cQ.value = qte; cQ.alignment = center; cQ.font = { size: 12 };
+    if (desig.startsWith("Impressions")) cQ.numFmt = qteFmtX;
     cP.value = pu; cP.alignment = center; cP.font = { size: 12 };
     cP.numFmt = desig.startsWith("Impressions") ? ccFmtX : money;
     cT.value = total; cT.alignment = center; cT.font = { size: 12, bold: true }; cT.numFmt = money;
