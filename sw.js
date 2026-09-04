@@ -1,5 +1,8 @@
-/* Service worker — « réseau d'abord », repli hors-ligne sur le cache. */
-const CACHE = "proposition-v13";
+/* Service worker — « réseau d'abord » pour le code de l'appli (toujours à
+   jour), « cache d'abord » pour les gros fichiers statiques qui ne changent
+   qu'à une nouvelle version (vendor/*, template PowerPoint, logo) — sinon
+   ces ~7 Mo sont retéléchargés à chaque rechargement de page. */
+const CACHE = "proposition-v14";
 const CORE = [
   "./",
   "index.html",
@@ -22,6 +25,10 @@ const CORE = [
   "manifest.webmanifest",
   "icon.png",
 ];
+/* Gros fichiers statiques : servis depuis le cache s'ils y sont déjà (rapide),
+   sinon récupérés sur le réseau. Une nouvelle version de ces fichiers exige
+   de changer CACHE ci-dessus pour forcer un nouveau précache. */
+const CACHE_FIRST = [/^vendor\//, /^assets\/template\.pptx$/, /^assets\/logo\.png$/, /^icon\.png$/];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -39,6 +46,21 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const path = new URL(event.request.url).pathname.replace(/^\//, "");
+  if (CACHE_FIRST.some((re) => re.test(path))) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => cached ||
+        fetch(event.request).then((resp) => {
+          if (resp && resp.ok) {
+            const copy = resp.clone();
+            caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+          }
+          return resp;
+        })
+      )
+    );
+    return;
+  }
   event.respondWith(
     fetch(event.request, { cache: "no-store" })
       .then((resp) => {
