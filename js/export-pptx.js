@@ -18,8 +18,9 @@ const SP_TITLE_Y = 6167707;
    légèrement supérieure à celle du logo LEVAD de la même page (779564 EMU,
    « Image 16 ») pour que le logo client ne paraisse pas plus petit ; la
    largeur suit le ratio de l'image, plafonnée pour ne pas déborder sur le
-   reste de la page de garde. */
-const LOGO_X = 645300, LOGO_Y = 1357137;
+   reste de la page de garde. Centré horizontalement sur l'axe du nom du
+   client (centre de « ZoneTexte 4 » : x=495300, largeur=2667000). */
+const LOGO_CENTER_X = 1828800, LOGO_Y = 1357137;
 const LOGO_TARGET_H = 800000;
 const LOGO_MAX_W = 3600000;
 
@@ -149,7 +150,7 @@ async function insertClientLogo(zip, dataUrl) {
   let scale = LOGO_TARGET_H / nh;
   let cx = Math.round(nw * scale), cy = LOGO_TARGET_H;
   if (cx > LOGO_MAX_W) { scale = LOGO_MAX_W / nw; cx = LOGO_MAX_W; cy = Math.round(nh * scale); }
-  const x = LOGO_X, y = LOGO_Y;
+  const x = Math.round(LOGO_CENTER_X - cx / 2), y = LOGO_Y;
 
   const mediaName = `clientlogo.${ext}`;
   zip.file(`ppt/media/${mediaName}`, bytes);
