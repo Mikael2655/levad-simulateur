@@ -118,7 +118,7 @@ function defaultMachine() {
     loyerCible: 0,          // loyer proposé saisi (par période) en mode "loyer"
     cadeaux: 0, cadeauxLabel: "",
     fraisLivraisonFacturer: 0,  // frais de livraison facturés au client, s'ajoute à la marge du dossier
-    ccNBpropose: 0, ccCoulPropose: 0,
+    ccNBpropose: 0.005, ccCoulPropose: 0.05,
     spVolNB: "", spVolCoul: "",   // volumes proposés : "" = auto (facturé), sinon override
     machineConfig: null,   // { category, machine, items:[{designation,price,qty}] } — configurateur Canon
   };
