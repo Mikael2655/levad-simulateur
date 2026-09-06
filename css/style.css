@@ -104,6 +104,11 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .margins-table th:nth-child(3), .margins-table td:nth-child(3) { text-align: left; }
 .margins-table thead th { color: var(--muted); font-weight: 600; font-size: 11.5px; }
 .margins-table tbody tr:hover { background: var(--field); }
+.margins-table tr.total-row td { border-top: 2px solid var(--line); border-bottom: none; }
+.month-margin-tile { margin-top: 14px; padding: 16px; text-align: center; background: var(--field);
+  border: 1px solid var(--line); border-radius: 12px; }
+.month-margin-tile span { display: block; font-size: 13px; color: var(--muted); }
+.month-margin-tile b { display: block; font-size: 40px; font-weight: 800; color: var(--brand); margin-top: 4px; }
 .user-row { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--field); }
 .user-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .user-row .sim-actions { margin-top: 10px; }

@@ -545,7 +545,6 @@ function marginsSummaryTable(title, groups) {
 function renderMargins() {
   const rows = marginRows();
   const totals = sumRows(rows);
-  const byMonth = groupByPeriod(rows, "month");
   const byQuarter = groupByPeriod(rows, "quarter");
   const byYear = groupByPeriod(rows, "year");
   const userOptions = ADMIN
@@ -556,6 +555,18 @@ function renderMargins() {
         </select></label>`
     : "";
 
+  // marge du mois en cours : pour un commercial, la sienne ; pour l'admin,
+  // celle de l'utilisateur sélectionné (ou de tous par défaut).
+  const now = new Date();
+  const curMonth = periodKeys(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`);
+  const monthMarge = rows.reduce((a, r) => {
+    const pk = periodKeys(r.date);
+    return a + (pk && pk.month === curMonth.month ? r.marge : 0);
+  }, 0);
+  const scopeLabel = ADMIN
+    ? (MARGINS_USER_FILTER ? (loadUsers().find((u) => u.id === MARGINS_USER_FILTER) || {}).name || "" : "tous les utilisateurs")
+    : "";
+
   document.getElementById("screen").innerHTML = `
     <section class="card">
       <div class="card-head"><h2>Marges — dossiers signés</h2>
@@ -563,21 +574,13 @@ function renderMargins() {
       <p class="muted small">Seules les simulations marquées « dossier signé » comptent dans ces cumuls —
         une proposition non convertie ne fausse pas les totaux.</p>
       ${userOptions ? `<div class="grid">${userOptions}</div>` : ""}
+      <div class="month-margin-tile">
+        <span>Marge de ${esc(curMonth.monthLabel)}${scopeLabel ? " — " + esc(scopeLabel) : ""}</span>
+        <b>${eur(monthMarge)}</b>
+      </div>
       ${rows.length ? "" : '<p class="muted">Aucun dossier signé enregistré pour l\'instant.</p>'}
     </section>
     ${rows.length ? `
-    <section class="card">
-      <h2>Total cumulé</h2>
-      <div class="table-wrap"><table class="margins-table">
-        <thead><tr><th>Ventes</th>${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead>
-        <tbody><tr><td>${totals.count}</td>${MARGIN_COLS.map(([k]) => `<td>${eur(totals[k])}</td>`).join("")}</tr></tbody>
-      </table></div>
-    </section>
-    <section class="card">
-      ${marginsSummaryTable("Cumul mensuel", byMonth)}
-      ${marginsSummaryTable("Cumul trimestriel (trimestres civils)", byQuarter)}
-      ${marginsSummaryTable("Cumul annuel (année civile)", byYear)}
-    </section>
     <section class="card">
       <h2>Détail des ventes</h2>
       <div class="table-wrap"><table class="margins-table">
@@ -588,8 +591,15 @@ function renderMargins() {
           ${ADMIN ? `<td>${esc(r.userName)}</td>` : ""}
           <td>${esc(r.client)}</td><td>${esc(r.type)}</td><td>${esc(r.machine)}</td>
           ${MARGIN_COLS.map(([k]) => `<td>${eur(r[k])}</td>`).join("")}
-        </tr>`).join("")}</tbody>
+        </tr>`).join("")}
+        <tr class="total-row"><td><b>Total</b></td>${ADMIN ? "<td></td>" : ""}<td></td><td></td><td>${totals.count} vente${totals.count > 1 ? "s" : ""}</td>
+          ${MARGIN_COLS.map(([k]) => `<td><b>${eur(totals[k])}</b></td>`).join("")}
+        </tr></tbody>
       </table></div>
+    </section>
+    <section class="card">
+      ${marginsSummaryTable("Cumul trimestriel", byQuarter)}
+      ${marginsSummaryTable("Cumul annuel", byYear)}
     </section>` : ""}`;
 }
 
