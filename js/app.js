@@ -599,10 +599,14 @@ function renderMargins() {
     ? (MARGINS_USER_FILTER ? (loadUsers().find((u) => u.id === MARGINS_USER_FILTER) || {}).name || "" : "tous les utilisateurs")
     : "";
 
-  // mois disponibles dans le sélecteur : ceux avec au moins une vente, plus
-  // toujours le mois en cours (même sans vente) — triés du plus récent au
-  // plus ancien.
-  const monthKeySet = new Set([curMonthKey]);
+  // mois disponibles dans le sélecteur : toute l'année civile en cours et
+  // toute l'année civile précédente (même sans vente), plus tout mois plus
+  // ancien qui contiendrait déjà une vente — triés du plus récent au plus
+  // ancien.
+  const monthKeySet = new Set();
+  [now.getFullYear(), now.getFullYear() - 1].forEach((y) => {
+    for (let mo = 1; mo <= 12; mo++) monthKeySet.add(`${y}-${String(mo).padStart(2, "0")}`);
+  });
   rows.forEach((r) => { const pk = periodKeys(r.date); if (pk) monthKeySet.add(pk.month); });
   const monthKeys = [...monthKeySet].sort((a, b) => b.localeCompare(a));
   const monthSelectOptions = `<label class="fld"><span>Mois consulté</span>
