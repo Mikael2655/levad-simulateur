@@ -21,6 +21,25 @@ function fileName(state, ext, label) {
   return `${label || "Proposition"}_${slugify(state.client.name)}_${d}.${ext}`;
 }
 
+/* "12/03/2026" -> "2026-03-12" (ISO), ou null si invalide. */
+function parseFrDate(str) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(str || "").trim());
+  if (!m) return null;
+  const d = +m[1], mo = +m[2], y = +m[3];
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/* Demande une date en jj/mm/aaaa (pré-remplie), retourne l'ISO ou null si
+   annulé/invalide (message d'erreur affiché dans ce cas). */
+function promptDate(label, defaultIso) {
+  const input = prompt(label, dateShort(defaultIso || todayISO()));
+  if (input === null) return null;
+  const iso = parseFrDate(input);
+  if (!iso) { alert("Date invalide. Format attendu : jj/mm/aaaa."); return null; }
+  return iso;
+}
+
 /* Fusion défensive d'un état chargé avec les valeurs par défaut (schéma évolutif). */
 function normalizeState(s) {
   const base = defaultState();

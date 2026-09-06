@@ -172,6 +172,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .btn.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
 .btn.ghost { background: transparent; }
 .btn.small { padding: 5px 9px; font-size: 12.5px; }
+.btn.tiny { padding: 0 4px; font-size: 11px; line-height: 1.6; border: none; background: transparent; vertical-align: middle; }
 .btn.danger { color: var(--neg); }
 .btn[disabled] { opacity: .45; cursor: not-allowed; }
 .status { font-size: 13px; }

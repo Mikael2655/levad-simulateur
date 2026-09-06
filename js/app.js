@@ -450,7 +450,8 @@ function renderSaved() {
     const who = ADMIN ? `<b>${esc(s.userName || "—")}</b> · ` : "";
     return `<div class="sim-row${s.archived ? " arch" : ""}">
       <span class="sim-name">${who}${esc(s.clientName || s.name || "Sans nom")}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
-        <span class="muted small">${esc(s.savedAt || "")}${s.sold ? " · signé le " + esc(dateShort(s.soldAt)) : ""}</span></span>
+        <span class="muted small">${esc(s.savedAt || "")}${s.sold ? " · signé le " + esc(dateShort(s.soldAt)) +
+          ((owner || ADMIN) ? ` <button class="btn tiny ghost" data-action="edit-sold-date" data-sim="${s.id}" title="Modifier la date de signature">✎</button>` : "") : ""}</span></span>
       <span class="sim-actions">
         <button class="btn small" data-action="load-sim" data-sim="${s.id}">Charger</button>
         ${(owner || ADMIN)
@@ -1094,13 +1095,33 @@ document.addEventListener("click", async (e) => {
       renderMargins();
       break;
     }
-    case "sell-sim": case "unsell-sim": {
+    case "sell-sim": {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
       if (!ADMIN && s.userId !== CURRENT_USER.id) break;
-      s.sold = (a === "sell-sim");
-      if (s.sold) s.soldAt = (s.state && s.state.client && s.state.client.date) || todayISO();
+      const defaultDate = (s.state && s.state.client && s.state.client.date) || todayISO();
+      const iso = promptDate("Date de signature du dossier (jj/mm/aaaa) :", defaultDate);
+      if (!iso) break;
+      s.sold = true; s.soldAt = iso;
       await Store.putSim(s); renderSaved();
-      flash(s.sold ? "Simulation marquée comme dossier signé." : "Repassée en proposition.");
+      flash("Simulation marquée comme dossier signé.");
+      break;
+    }
+    case "unsell-sim": {
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
+      s.sold = false;
+      await Store.putSim(s); renderSaved();
+      flash("Repassée en proposition.");
+      break;
+    }
+    case "edit-sold-date": {
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
+      const iso = promptDate("Date de signature du dossier (jj/mm/aaaa) :", s.soldAt);
+      if (!iso) break;
+      s.soldAt = iso;
+      await Store.putSim(s); renderSaved();
+      flash("Date de signature mise à jour.");
       break;
     }
     case "del-sim": {
