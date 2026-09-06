@@ -49,7 +49,12 @@ function updateTopbar() {
   if (chip) { chip.textContent = CURRENT_USER ? (CURRENT_USER.name + (CURRENT_USER.isAdmin ? " · admin" : "")) : ""; chip.hidden = !CURRENT_USER; }
   if (out) out.hidden = !CURRENT_USER;
   if (usersBtn) usersBtn.hidden = !(CURRENT_USER && ADMIN);
-  if (marginsBtn) marginsBtn.hidden = !CURRENT_USER;
+  if (marginsBtn) {
+    marginsBtn.hidden = !CURRENT_USER;
+    marginsBtn.innerHTML = SHOW_MARGINS
+      ? '↩ <span class="btn-label">Simulateur</span>'
+      : '📊 <span class="btn-label">Marges</span>';
+  }
 }
 function openUsersModal() {
   const modal = document.getElementById("users-modal"); if (!modal) return;
@@ -934,8 +939,16 @@ document.addEventListener("click", async (e) => {
     case "admin-clear-override": STATE.coeffOverride = ""; saveState(STATE); renderAdmin(); renderResults(); break;
     case "retry-firebase": location.reload(); break;
     case "open-users": if (ADMIN) openUsersModal(); break;
-    case "open-margins": SHOW_MARGINS = true; renderMargins(); break;
-    case "close-margins": SHOW_MARGINS = false; renderApp(); break;
+    case "toggle-margins":
+      SHOW_MARGINS = !SHOW_MARGINS;
+      if (SHOW_MARGINS) renderMargins(); else renderApp();
+      updateTopbar();
+      window.scrollTo(0, 0);
+      break;
+    case "close-margins":
+      SHOW_MARGINS = false; renderApp(); updateTopbar();
+      window.scrollTo(0, 0);
+      break;
     case "close-users": closeUsersModal(); break;
     case "open-config": await openConfigModal(mid); break;
     case "close-config": closeConfigModal(); break;
