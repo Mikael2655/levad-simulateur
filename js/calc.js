@@ -190,19 +190,26 @@ function perAdjMasc(state) { return state.periodicite === "M" ? "Mensuel" : "Tri
 function perShort(state) { return state.periodicite === "M" ? "/ mois" : "/ trim"; }
 
 /* -------- Formatage à la française -------- */
+/* toLocaleString("fr-FR") sépare les milliers par une espace fine insécable
+   (U+202F) : mal supportée par certaines polices/navigateurs, elle peut
+   s'afficher invisible. On la remplace par une espace normale pour que le
+   séparateur de milliers soit toujours visible, partout dans l'appli. */
+function frLocale(n, opts) {
+  return n.toLocaleString("fr-FR", opts).replace(/[  ]/g, " ");
+}
 function frNum(v, dec = 2) {
-  return num(v).toLocaleString("fr-FR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  return frLocale(num(v), { minimumFractionDigits: dec, maximumFractionDigits: dec });
 }
 function moneySmart(v, ht) {
   const n = num(v), dec = Number.isInteger(n) ? 0 : 2;
   return frNum(n, dec) + (ht ? " € HT" : " €");
 }
 function eur(v, dec = 2) { return frNum(v, dec) + " €"; }
-function pages(v) { return num(v).toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " Pages"; }
+function pages(v) { return frLocale(num(v), { maximumFractionDigits: 0 }) + " Pages"; }
 /* Coût page : pas de décimales forcées, s'arrête au dernier chiffre utile
    (ex. 0,05 € plutôt que 0,050000 €). */
-function ccFmt(v) { return num(v).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 6 }) + " €"; }
-function ccPlain(v) { return num(v).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 6 }); }
+function ccFmt(v) { return frLocale(num(v), { minimumFractionDigits: 0, maximumFractionDigits: 6 }) + " €"; }
+function ccPlain(v) { return frLocale(num(v), { minimumFractionDigits: 0, maximumFractionDigits: 6 }); }
 
 /* -------- Email & téléphone du commercial -------- */
 function autoEmail(name) {

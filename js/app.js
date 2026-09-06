@@ -576,7 +576,7 @@ function renderMargins() {
       ${userOptions ? `<div class="grid">${userOptions}</div>` : ""}
       <div class="month-margin-tile">
         <span>Marge de ${esc(curMonth.monthLabel)}${scopeLabel ? " — " + esc(scopeLabel) : ""}</span>
-        <b>${eur(monthMarge)}</b>
+        <b>${eur(monthMarge, 0)}</b>
       </div>
       ${rows.length ? "" : '<p class="muted">Aucun dossier signé enregistré pour l\'instant.</p>'}
     </section>

@@ -34,7 +34,7 @@ function moneyP(v, ht) {
 function moneyPlain(v) { const n = num(v); return frNum(n, Number.isInteger(n) ? 0 : 2); }
 
 /* Nombre de pages sans le mot « Pages » (slide 25). */
-function pagesNum(v) { return num(v).toLocaleString("fr-FR", { maximumFractionDigits: 0 }); }
+function pagesNum(v) { return frLocale(num(v), { maximumFractionDigits: 0 }); }
 
 /* Total des abonnements & services pour un côté (sa/sp) d'une machine. */
 function servicesTotal(r, side) {
