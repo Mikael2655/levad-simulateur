@@ -13,6 +13,7 @@ let CONFIG_MID = null;        // machine en cours d'édition dans le configurate
 let CONFIG_DRAFT = null;      // { category, machine, items: { [clé]: {designation,price,qty} } }
 let SHOW_MARGINS = false;     // écran « Marges » (cumul par utilisateur) affiché ?
 let MARGINS_USER_FILTER = ""; // admin : userId sélectionné, "" = tous
+let MANUAL_SALE_OPEN = false; // formulaire « vente en saisie libre » ouvert ?
 
 const NUM = "num", TXT = "txt";
 
@@ -484,20 +485,32 @@ function periodKeys(iso) {
 }
 
 /* Construit une ligne de rapport par machine, pour les dossiers signés
-   visibles par l'utilisateur courant (les siens, ou tous si admin). */
+   visibles par l'utilisateur courant (les siens, ou tous si admin). Inclut
+   aussi les ventes saisies librement (s.manual === true). */
 function marginRows() {
   let sims = loadSims().filter((s) => s.sold);
   if (!ADMIN) sims = sims.filter((s) => s.userId === CURRENT_USER.id);
   else if (MARGINS_USER_FILTER) sims = sims.filter((s) => s.userId === MARGINS_USER_FILTER);
   const rows = [];
   sims.forEach((s) => {
+    if (s.manual) {
+      rows.push({
+        simId: s.id, userName: s.userName || "—", date: s.soldAt || "", manual: true,
+        client: s.clientName || "—", type: s.prospect ? "Prospect" : "Client", machine: s.machine || "—",
+        financed: num(s.financed), livraison: num(s.livraison),
+        prixCession: num(s.prixCession), logistique: num(s.logistique),
+        rachatLocation: num(s.rachatLocation), rachatMaintenance: num(s.rachatMaintenance),
+        marge: num(s.marge),
+      });
+      return;
+    }
     let st; try { st = normalizeState(JSON.parse(JSON.stringify(s.state))); } catch (e) { return; }
     const calc = computeAll(st);
     st.machines.forEach((m, i) => {
       const r = calc.rows[i]; if (!r) return;
       const logistique = num(m.installation) + num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait);
       rows.push({
-        simId: s.id, userName: s.userName || "—", date: s.soldAt || st.client.date || "",
+        simId: s.id, userName: s.userName || "—", date: s.soldAt || st.client.date || "", manual: false,
         client: st.client.name || s.clientName || "—",
         type: m.prospect ? "Prospect" : "Client",
         machine: m.proposedModel || "—",
@@ -523,35 +536,42 @@ function sumRows(rows) {
   MARGIN_COLS.forEach(([k]) => { out[k] = rows.reduce((a, r) => a + r[k], 0); });
   return out;
 }
-/* Regroupe les lignes par période (mois/trimestre/année civile) et cumule. */
-function groupByPeriod(rows, kind) {
-  const buckets = new Map();
-  rows.forEach((r) => {
-    const pk = periodKeys(r.date); if (!pk) return;
-    const key = pk[kind], label = pk[kind + "Label"];
-    if (!buckets.has(key)) buckets.set(key, { key, label, rows: [] });
-    buckets.get(key).rows.push(r);
-  });
-  return [...buckets.values()]
-    .sort((a, b) => b.key.localeCompare(a.key))
-    .map((b) => ({ label: b.label, ...sumRows(b.rows) }));
+function rowsInPeriod(rows, kind, key) {
+  return rows.filter((r) => { const pk = periodKeys(r.date); return pk && pk[kind] === key; });
+}
+/* Tableau à une seule ligne (le total de la période) : le titre porte déjà
+   la période, inutile de la répéter dans une colonne. */
+function periodTotalTable(title, totals) {
+  return `<div class="subgrid"><h4>${esc(title)}</h4>
+    <div class="table-wrap"><table class="margins-table">
+      <thead><tr><th>Ventes</th>${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead>
+      <tbody><tr><td>${totals.count}</td>${MARGIN_COLS.map(([k]) => `<td>${eur(totals[k])}</td>`).join("")}</tr></tbody>
+    </table></div>
+  </div>`;
 }
 
-function marginsSummaryTable(title, groups) {
-  if (!groups.length) return "";
-  return `<div class="subgrid"><h4>${title}</h4>
-    <div class="table-wrap"><table class="margins-table">
-      <thead><tr><th>Période</th><th>Ventes</th>${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead>
-      <tbody>${groups.map((g) => `<tr><td>${esc(g.label)}</td><td>${g.count}</td>${MARGIN_COLS.map(([k]) => `<td>${eur(g[k])}</td>`).join("")}</tr>`).join("")}</tbody>
-    </table></div>
+function manualSaleForm() {
+  return `<div class="subgrid"><h4>Nouvelle vente en saisie libre</h4>
+    <p class="hint">À utiliser si un dossier a été signé sans passer par une proposition du simulateur,
+      ou pour rattraper une vente d'un mois déjà écoulé.</p>
+    <div class="grid">
+      <label class="fld"><span>Date de la vente</span><input type="date" id="ms-date" value="${esc(todayISO())}"></label>
+      <label class="fld"><span>Client</span><input type="text" id="ms-client" placeholder="Nom du client"></label>
+      <label class="fld"><span>Type</span><select id="ms-type"><option value="client">Client</option><option value="prospect">Prospect</option></select></label>
+      <label class="fld"><span>Machine</span><input type="text" id="ms-machine" placeholder="Référence machine"></label>
+    </div>
+    <div class="grid">
+      ${MARGIN_COLS.map(([k, l]) => `<label class="fld money"><span>${l}</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" id="ms-${k}" value="0">`)}</label>`).join("")}
+    </div>
+    <div class="actions">
+      <button class="btn primary small" data-action="save-manual-sale">Enregistrer la vente</button>
+      <button class="btn ghost small" data-action="cancel-manual-sale">Annuler</button>
+    </div>
   </div>`;
 }
 
 function renderMargins() {
   const rows = marginRows();
-  const totals = sumRows(rows);
-  const byQuarter = groupByPeriod(rows, "quarter");
-  const byYear = groupByPeriod(rows, "year");
   const userOptions = ADMIN
     ? `<label class="fld"><span>Utilisateur</span>
         <select id="margins-user-select">
@@ -560,14 +580,15 @@ function renderMargins() {
         </select></label>`
     : "";
 
-  // marge du mois en cours : pour un commercial, la sienne ; pour l'admin,
-  // celle de l'utilisateur sélectionné (ou de tous par défaut).
+  // périodes en cours : pour un commercial, ses propres ventes ; pour
+  // l'admin, celles de l'utilisateur sélectionné (ou de tous par défaut).
   const now = new Date();
   const curMonth = periodKeys(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`);
-  const monthMarge = rows.reduce((a, r) => {
-    const pk = periodKeys(r.date);
-    return a + (pk && pk.month === curMonth.month ? r.marge : 0);
-  }, 0);
+  const monthRows = rowsInPeriod(rows, "month", curMonth.month);
+  const quarterRows = rowsInPeriod(rows, "quarter", curMonth.quarter);
+  const yearRows = rowsInPeriod(rows, "year", curMonth.year);
+  const monthTotals = sumRows(monthRows);
+  const hasManual = monthRows.some((r) => r.manual);
   const scopeLabel = ADMIN
     ? (MARGINS_USER_FILTER ? (loadUsers().find((u) => u.id === MARGINS_USER_FILTER) || {}).name || "" : "tous les utilisateurs")
     : "";
@@ -581,30 +602,36 @@ function renderMargins() {
       ${userOptions ? `<div class="grid">${userOptions}</div>` : ""}
       <div class="month-margin-tile">
         <span>Marge de ${esc(curMonth.monthLabel)}${scopeLabel ? " — " + esc(scopeLabel) : ""}</span>
-        <b>${eur(monthMarge, 0)}</b>
+        <b>${eur(monthTotals.marge, 0)}</b>
       </div>
+      <div class="subgrid actions">
+        ${MANUAL_SALE_OPEN
+          ? ""
+          : `<button class="btn ghost small" data-action="open-manual-sale">＋ Ajouter une vente en saisie libre</button>`}
+      </div>
+      ${MANUAL_SALE_OPEN ? manualSaleForm() : ""}
       ${rows.length ? "" : '<p class="muted">Aucun dossier signé enregistré pour l\'instant.</p>'}
     </section>
     ${rows.length ? `
     <section class="card">
-      <h2>Détail des ventes</h2>
-      <div class="table-wrap"><table class="margins-table">
-        <thead><tr><th>Date</th>${ADMIN ? "<th>Commercial</th>" : ""}<th>Client</th><th>Type</th><th>Machine</th>
-          ${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead>
-        <tbody>${rows.map((r) => `<tr>
-          <td>${esc(dateShort(r.date))}</td>
+      <h2>Détail des ventes — ${esc(curMonth.monthLabel)}</h2>
+      ${monthRows.length ? `<div class="table-wrap"><table class="margins-table">
+        <thead><tr>${ADMIN ? "<th>Commercial</th>" : ""}<th>Client</th><th>Type</th><th>Machine</th>
+          ${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}${hasManual ? "<th></th>" : ""}</tr></thead>
+        <tbody>${monthRows.map((r) => `<tr>
           ${ADMIN ? `<td>${esc(r.userName)}</td>` : ""}
-          <td>${esc(r.client)}</td><td>${esc(r.type)}</td><td>${esc(r.machine)}</td>
+          <td>${esc(r.client)}</td><td>${esc(r.type)}</td><td>${esc(r.machine)}${r.manual ? ' <span class="tag">manuel</span>' : ""}</td>
           ${MARGIN_COLS.map(([k]) => `<td>${eur(r[k])}</td>`).join("")}
+          ${hasManual ? `<td>${r.manual ? `<button class="btn ghost small" data-action="del-manual-sale" data-sim="${r.simId}">✕</button>` : ""}</td>` : ""}
         </tr>`).join("")}
-        <tr class="total-row"><td><b>Total</b></td>${ADMIN ? "<td></td>" : ""}<td></td><td></td><td>${totals.count} vente${totals.count > 1 ? "s" : ""}</td>
-          ${MARGIN_COLS.map(([k]) => `<td><b>${eur(totals[k])}</b></td>`).join("")}
+        <tr class="total-row"><td><b>Total</b></td>${ADMIN ? "<td></td>" : ""}<td></td><td>${monthTotals.count} vente${monthTotals.count > 1 ? "s" : ""}</td>
+          ${MARGIN_COLS.map(([k]) => `<td><b>${eur(monthTotals[k])}</b></td>`).join("")}${hasManual ? "<td></td>" : ""}
         </tr></tbody>
-      </table></div>
+      </table></div>` : '<p class="muted small">Aucune vente ce mois-ci.</p>'}
     </section>
     <section class="card">
-      ${marginsSummaryTable("Cumul trimestriel", byQuarter)}
-      ${marginsSummaryTable("Cumul annuel", byYear)}
+      ${periodTotalTable("Cumul " + curMonth.quarterLabel, sumRows(quarterRows))}
+      ${periodTotalTable("Cumul " + curMonth.yearLabel, sumRows(yearRows))}
     </section>` : ""}`;
 }
 
@@ -1011,6 +1038,32 @@ document.addEventListener("click", async (e) => {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
       if (!ADMIN && s.userId !== CURRENT_USER.id) break;
       s.archived = (a === "arch-sim"); await Store.putSim(s); renderSaved();
+      break;
+    }
+    case "open-manual-sale": MANUAL_SALE_OPEN = true; renderMargins(); break;
+    case "cancel-manual-sale": MANUAL_SALE_OPEN = false; renderMargins(); break;
+    case "save-manual-sale": {
+      const val = (id) => document.getElementById(id).value;
+      const client = val("ms-client").trim();
+      if (!client) { alert("Le nom du client est obligatoire."); break; }
+      const sale = {
+        id: cryptoId(), userId: CURRENT_USER.id, userName: CURRENT_USER.name,
+        manual: true, sold: true, soldAt: val("ms-date") || todayISO(),
+        clientName: client, prospect: val("ms-type") === "prospect", machine: val("ms-machine").trim(),
+      };
+      MARGIN_COLS.forEach(([k]) => { sale[k] = num(val("ms-" + k)); });
+      await Store.putSim(sale);
+      MANUAL_SALE_OPEN = false;
+      renderMargins();
+      flash("Vente ajoutée.");
+      break;
+    }
+    case "del-manual-sale": {
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
+      if (!confirm("Supprimer cette vente saisie manuellement ?")) break;
+      await Store.removeSim(s.id);
+      renderMargins();
       break;
     }
     case "sell-sim": case "unsell-sim": {
