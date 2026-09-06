@@ -442,14 +442,14 @@ function renderSaved() {
     const owner = s.userId === CURRENT_USER.id;
     const who = ADMIN ? `<b>${esc(s.userName || "—")}</b> · ` : "";
     return `<div class="sim-row${s.archived ? " arch" : ""}">
-      <span class="sim-name">${who}${esc(s.clientName || s.name || "Sans nom")}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">vente effective</span>' : ""}
-        <span class="muted small">${esc(s.savedAt || "")}${s.sold ? " · vendue le " + esc(dateShort(s.soldAt)) : ""}</span></span>
+      <span class="sim-name">${who}${esc(s.clientName || s.name || "Sans nom")}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
+        <span class="muted small">${esc(s.savedAt || "")}${s.sold ? " · signé le " + esc(dateShort(s.soldAt)) : ""}</span></span>
       <span class="sim-actions">
         <button class="btn small" data-action="load-sim" data-sim="${s.id}">Charger</button>
         ${(owner || ADMIN)
           ? (s.sold
             ? `<button class="btn small ghost" data-action="unsell-sim" data-sim="${s.id}">↺ Repasser en proposition</button>`
-            : `<button class="btn small" data-action="sell-sim" data-sim="${s.id}">✔ Vente effective</button>`)
+            : `<button class="btn small" data-action="sell-sim" data-sim="${s.id}">✔ Dossier signé</button>`)
           : ""}
         ${s.archived
           ? ((owner || ADMIN) ? `<button class="btn small ghost" data-action="unarch-sim" data-sim="${s.id}">Désarchiver</button>` : "")
@@ -461,7 +461,7 @@ function renderSaved() {
 }
 
 /* -------------------- Marges (cumul par utilisateur) --------------------
-   Une ligne par machine des simulations marquées « vente effective »
+   Une ligne par machine des simulations marquées « dossier signé »
    (les propositions non converties ne comptent pas dans les cumuls). */
 const MOIS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
@@ -478,8 +478,8 @@ function periodKeys(iso) {
   };
 }
 
-/* Construit une ligne de rapport par machine, pour les ventes effectives
-   visibles par l'utilisateur courant (les siennes, ou toutes si admin). */
+/* Construit une ligne de rapport par machine, pour les dossiers signés
+   visibles par l'utilisateur courant (les siens, ou tous si admin). */
 function marginRows() {
   let sims = loadSims().filter((s) => s.sold);
   if (!ADMIN) sims = sims.filter((s) => s.userId === CURRENT_USER.id);
@@ -558,12 +558,12 @@ function renderMargins() {
 
   document.getElementById("screen").innerHTML = `
     <section class="card">
-      <div class="card-head"><h2>Marges — ventes effectives</h2>
+      <div class="card-head"><h2>Marges — dossiers signés</h2>
         <button class="btn ghost small" data-action="close-margins">← Retour au simulateur</button></div>
-      <p class="muted small">Seules les simulations marquées « vente effective » comptent dans ces cumuls —
+      <p class="muted small">Seules les simulations marquées « dossier signé » comptent dans ces cumuls —
         une proposition non convertie ne fausse pas les totaux.</p>
       ${userOptions ? `<div class="grid">${userOptions}</div>` : ""}
-      ${rows.length ? "" : '<p class="muted">Aucune vente effective enregistrée pour l\'instant.</p>'}
+      ${rows.length ? "" : '<p class="muted">Aucun dossier signé enregistré pour l\'instant.</p>'}
     </section>
     ${rows.length ? `
     <section class="card">
@@ -996,7 +996,7 @@ document.addEventListener("click", async (e) => {
       s.sold = (a === "sell-sim");
       if (s.sold) s.soldAt = (s.state && s.state.client && s.state.client.date) || todayISO();
       await Store.putSim(s); renderSaved();
-      flash(s.sold ? "Simulation marquée comme vente effective." : "Repassée en proposition.");
+      flash(s.sold ? "Simulation marquée comme dossier signé." : "Repassée en proposition.");
       break;
     }
     case "del-sim": {
