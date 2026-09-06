@@ -649,7 +649,7 @@ function renderMargins() {
     </section>
     ${rows.length ? `
     <section class="card">
-      <h2>Détail des ventes — ${esc(curMonth.monthLabel)}</h2>
+      <h2>${esc(curMonth.monthLabel)}</h2>
       ${monthRows.length ? `<div class="table-wrap"><table class="margins-table">
         <thead><tr>${ADMIN ? "<th>Commercial</th>" : ""}<th>Client</th><th>Type</th><th>Machine</th>
           ${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}${hasManual ? "<th></th>" : ""}</tr></thead>
@@ -664,8 +664,8 @@ function renderMargins() {
         </tr></tbody>
       </table></div>` : '<p class="muted small">Aucune vente ce mois-ci.</p>'}
     </section>
-    ${periodTotalTable("Cumul " + curMonth.quarterLabel, sumRows(quarterRows))}
-    ${periodTotalTable("Cumul " + curMonth.yearLabel, sumRows(yearRows))}` : ""}`;
+    ${periodTotalTable("Cumul trimestre", sumRows(quarterRows))}
+    ${periodTotalTable("Cumul année", sumRows(yearRows))}` : ""}`;
 }
 
 function renderUsers() {
