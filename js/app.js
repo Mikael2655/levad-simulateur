@@ -13,6 +13,7 @@ let CONFIG_MID = null;        // machine en cours d'édition dans le configurate
 let CONFIG_DRAFT = null;      // { category, machine, items: { [clé]: {designation,price,qty} } }
 let SHOW_MARGINS = false;     // écran « Marges » (cumul par utilisateur) affiché ?
 let MARGINS_USER_FILTER = ""; // admin : userId sélectionné, "" = tous
+let MARGINS_MONTH = "";       // mois consulté ("YYYY-MM"), "" = mois en cours
 let MANUAL_SALE_OPEN = false; // formulaire « vente en saisie libre » ouvert ?
 
 const NUM = "num", TXT = "txt";
@@ -580,18 +581,34 @@ function renderMargins() {
         </select></label>`
     : "";
 
-  // périodes en cours : pour un commercial, ses propres ventes ; pour
-  // l'admin, celles de l'utilisateur sélectionné (ou de tous par défaut).
+  // mois consulté : celui sélectionné, sinon le mois en cours par défaut.
+  // Pour un commercial, ses propres ventes ; pour l'admin, celles de
+  // l'utilisateur sélectionné (ou de tous par défaut).
   const now = new Date();
-  const curMonth = periodKeys(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`);
+  const curMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const curMonth = periodKeys((MARGINS_MONTH || curMonthKey) + "-01");
   const monthRows = rowsInPeriod(rows, "month", curMonth.month);
-  const quarterRows = rowsInPeriod(rows, "quarter", curMonth.quarter);
-  const yearRows = rowsInPeriod(rows, "year", curMonth.year);
+  // cumul « à date » : les ventes du trimestre/de l'année jusqu'au mois
+  // consulté inclus (pas les mois suivants, même si le trimestre/l'année
+  // en contient déjà) — reproduit le total tel qu'il était à cette période.
+  const quarterRows = rows.filter((r) => { const pk = periodKeys(r.date); return pk && pk.quarter === curMonth.quarter && pk.month <= curMonth.month; });
+  const yearRows = rows.filter((r) => { const pk = periodKeys(r.date); return pk && pk.year === curMonth.year && pk.month <= curMonth.month; });
   const monthTotals = sumRows(monthRows);
   const hasManual = monthRows.some((r) => r.manual);
   const scopeLabel = ADMIN
     ? (MARGINS_USER_FILTER ? (loadUsers().find((u) => u.id === MARGINS_USER_FILTER) || {}).name || "" : "tous les utilisateurs")
     : "";
+
+  // mois disponibles dans le sélecteur : ceux avec au moins une vente, plus
+  // toujours le mois en cours (même sans vente) — triés du plus récent au
+  // plus ancien.
+  const monthKeySet = new Set([curMonthKey]);
+  rows.forEach((r) => { const pk = periodKeys(r.date); if (pk) monthKeySet.add(pk.month); });
+  const monthKeys = [...monthKeySet].sort((a, b) => b.localeCompare(a));
+  const monthSelectOptions = `<label class="fld"><span>Mois consulté</span>
+    <select id="margins-month-select">
+      ${monthKeys.map((mk) => `<option value="${mk}" ${mk === curMonth.month ? "selected" : ""}>${esc(periodKeys(mk + "-01").monthLabel)}${mk === curMonthKey ? " (en cours)" : ""}</option>`).join("")}
+    </select></label>`;
 
   document.getElementById("screen").innerHTML = `
     <section class="card">
@@ -599,7 +616,7 @@ function renderMargins() {
         <button class="btn ghost small" data-action="close-margins">← Retour au simulateur</button></div>
       <p class="muted small">Seules les simulations marquées « dossier signé » comptent dans ces cumuls —
         une proposition non convertie ne fausse pas les totaux.</p>
-      ${userOptions ? `<div class="grid">${userOptions}</div>` : ""}
+      <div class="grid">${userOptions}${monthSelectOptions}</div>
       <div class="month-margin-tile">
         <span>Marge de ${esc(curMonth.monthLabel)}${scopeLabel ? " — " + esc(scopeLabel) : ""}</span>
         <b>${eur(monthTotals.marge, 0)}</b>
@@ -864,6 +881,13 @@ document.addEventListener("change", (e) => {
   }
   if (t.id === "margins-user-select") {
     MARGINS_USER_FILTER = t.value;
+    renderMargins();
+    return;
+  }
+  if (t.id === "margins-month-select") {
+    const now = new Date();
+    const curMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    MARGINS_MONTH = t.value === curMonthKey ? "" : t.value;
     renderMargins();
     return;
   }
