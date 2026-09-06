@@ -49,6 +49,18 @@
     </div>
   </div>
 
+  <div id="date-modal" class="modal-overlay" hidden>
+    <div class="modal-panel date-panel">
+      <div class="card-head"><h2>Date de signature</h2></div>
+      <label class="fld"><span>Date</span><input type="date" id="date-modal-input"></label>
+      <div class="actions">
+        <button class="btn ghost small" data-action="date-modal-today">Aujourd'hui</button>
+        <button class="btn primary small" data-action="date-modal-confirm">Valider</button>
+        <button class="btn ghost small" data-action="date-modal-cancel">Annuler</button>
+      </div>
+    </div>
+  </div>
+
   <div id="cfg-info-popup" class="cfg-info-popup" hidden>
     <button type="button" class="cfg-info-close" data-action="close-cfg-info">✕</button>
     <div id="cfg-info-text"></div>

@@ -15,6 +15,7 @@ let SHOW_MARGINS = false;     // écran « Marges » (cumul par utilisateur) aff
 let MARGINS_USER_FILTER = ""; // admin : userId sélectionné, "" = tous
 let MARGINS_MONTH = "";       // mois consulté ("YYYY-MM"), "" = mois en cours
 let MANUAL_SALE_OPEN = false; // formulaire « vente en saisie libre » ouvert ?
+let DATE_MODAL_SIM = "";      // id de la simulation dont on édite la date de signature
 
 const NUM = "num", TXT = "txt";
 
@@ -65,6 +66,17 @@ function openUsersModal() {
 function closeUsersModal() {
   const modal = document.getElementById("users-modal"); if (!modal) return;
   modal.hidden = true;
+}
+
+/* Modale de saisie de la date de signature (calendrier + bouton « Aujourd'hui »). */
+function openDateModal(simId, defaultIso) {
+  DATE_MODAL_SIM = simId;
+  document.getElementById("date-modal-input").value = defaultIso || todayISO();
+  document.getElementById("date-modal").hidden = false;
+}
+function closeDateModal() {
+  DATE_MODAL_SIM = "";
+  document.getElementById("date-modal").hidden = true;
 }
 
 /* -------------------- Configurateur Canon -------------------- */
@@ -1095,15 +1107,11 @@ document.addEventListener("click", async (e) => {
       renderMargins();
       break;
     }
-    case "sell-sim": {
+    case "sell-sim": case "edit-sold-date": {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
       if (!ADMIN && s.userId !== CURRENT_USER.id) break;
-      const defaultDate = (s.state && s.state.client && s.state.client.date) || todayISO();
-      const iso = promptDate("Date de signature du dossier (jj/mm/aaaa) :", defaultDate);
-      if (!iso) break;
-      s.sold = true; s.soldAt = iso;
-      await Store.putSim(s); renderSaved();
-      flash("Simulation marquée comme dossier signé.");
+      const defaultDate = s.soldAt || (s.state && s.state.client && s.state.client.date) || todayISO();
+      openDateModal(s.id, defaultDate);
       break;
     }
     case "unsell-sim": {
@@ -1114,14 +1122,23 @@ document.addEventListener("click", async (e) => {
       flash("Repassée en proposition.");
       break;
     }
-    case "edit-sold-date": {
-      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
-      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
-      const iso = promptDate("Date de signature du dossier (jj/mm/aaaa) :", s.soldAt);
-      if (!iso) break;
-      s.soldAt = iso;
-      await Store.putSim(s); renderSaved();
-      flash("Date de signature mise à jour.");
+    case "date-modal-today":
+      document.getElementById("date-modal-input").value = todayISO();
+      break;
+    case "date-modal-cancel":
+      closeDateModal();
+      break;
+    case "date-modal-confirm": {
+      const iso = document.getElementById("date-modal-input").value;
+      if (!iso) { alert("Merci de choisir une date."); break; }
+      const s = loadSims().find((x) => x.id === DATE_MODAL_SIM);
+      if (s && (ADMIN || s.userId === CURRENT_USER.id)) {
+        s.sold = true; s.soldAt = iso;
+        await Store.putSim(s);
+      }
+      closeDateModal();
+      renderSaved();
+      flash("Date de signature enregistrée.");
       break;
     }
     case "del-sim": {
