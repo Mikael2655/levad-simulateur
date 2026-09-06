@@ -556,12 +556,13 @@ function rowsInPeriod(rows, kind, key) {
 /* Tableau à une seule ligne (le total de la période) : le titre porte déjà
    la période, inutile de la répéter dans une colonne. */
 function periodTotalTable(title, totals) {
-  return `<div class="subgrid"><h4>${esc(title)}</h4>
+  return `<section class="card">
+    <h2>${esc(title)}</h2>
     <div class="table-wrap"><table class="margins-table">
       <thead><tr><th>Ventes</th>${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead>
       <tbody><tr><td>${totals.count}</td>${MARGIN_COLS.map(([k]) => `<td>${eur(totals[k])}</td>`).join("")}</tr></tbody>
     </table></div>
-  </div>`;
+  </section>`;
 }
 
 function manualSaleForm() {
@@ -663,10 +664,8 @@ function renderMargins() {
         </tr></tbody>
       </table></div>` : '<p class="muted small">Aucune vente ce mois-ci.</p>'}
     </section>
-    <section class="card">
-      ${periodTotalTable("Cumul " + curMonth.quarterLabel, sumRows(quarterRows))}
-      ${periodTotalTable("Cumul " + curMonth.yearLabel, sumRows(yearRows))}
-    </section>` : ""}`;
+    ${periodTotalTable("Cumul " + curMonth.quarterLabel, sumRows(quarterRows))}
+    ${periodTotalTable("Cumul " + curMonth.yearLabel, sumRows(yearRows))}` : ""}`;
 }
 
 function renderUsers() {
