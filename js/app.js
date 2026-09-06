@@ -513,8 +513,8 @@ function marginRows() {
 }
 
 const MARGIN_COLS = [
-  ["financed", "Montant financé"], ["livraison", "Frais livraison facturés"],
-  ["prixCession", "Prix de cession machine + access."], ["logistique", "Livraison/retrait/installation"],
+  ["financed", "Montant financé"], ["livraison", "Frais livraison"],
+  ["prixCession", "Prix de cession"], ["logistique", "Livraison installation"],
   ["rachatLocation", "Rachat location"], ["rachatMaintenance", "Rachat maintenance"], ["marge", "Marge"],
 ];
 
