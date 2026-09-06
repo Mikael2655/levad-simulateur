@@ -11,6 +11,8 @@ let COEFF_UNLOCKED = false;   // barème masqué tant que non déverrouillé
 let CATALOG = null;           // catalogue Canon (assets/catalog.json), chargé à la demande
 let CONFIG_MID = null;        // machine en cours d'édition dans le configurateur
 let CONFIG_DRAFT = null;      // { category, machine, items: { [clé]: {designation,price,qty} } }
+let SHOW_MARGINS = false;     // écran « Marges » (cumul par utilisateur) affiché ?
+let MARGINS_USER_FILTER = ""; // admin : userId sélectionné, "" = tous
 
 const NUM = "num", TXT = "txt";
 
@@ -19,7 +21,11 @@ async function start() {
   const scr = document.getElementById("screen");
   if (scr) scr.innerHTML = `<section class="card"><p class="muted">Chargement…</p></section>`;
   await Store.init();
-  Store.onUpdate = () => { if (CURRENT_USER) { renderSaved(); if (ADMIN) renderUsers(); } };
+  Store.onUpdate = () => {
+    if (!CURRENT_USER) return;
+    if (SHOW_MARGINS) { renderMargins(); return; }
+    renderSaved(); if (ADMIN) renderUsers();
+  };
   await initAuth();
   await boot();
 }
@@ -39,9 +45,11 @@ function updateTopbar() {
   const chip = document.getElementById("user-chip");
   const out = document.getElementById("logout-btn");
   const usersBtn = document.getElementById("users-btn");
+  const marginsBtn = document.getElementById("margins-btn");
   if (chip) { chip.textContent = CURRENT_USER ? (CURRENT_USER.name + (CURRENT_USER.isAdmin ? " · admin" : "")) : ""; chip.hidden = !CURRENT_USER; }
   if (out) out.hidden = !CURRENT_USER;
   if (usersBtn) usersBtn.hidden = !(CURRENT_USER && ADMIN);
+  if (marginsBtn) marginsBtn.hidden = !CURRENT_USER;
 }
 function openUsersModal() {
   const modal = document.getElementById("users-modal"); if (!modal) return;
@@ -434,10 +442,15 @@ function renderSaved() {
     const owner = s.userId === CURRENT_USER.id;
     const who = ADMIN ? `<b>${esc(s.userName || "—")}</b> · ` : "";
     return `<div class="sim-row${s.archived ? " arch" : ""}">
-      <span class="sim-name">${who}${esc(s.clientName || s.name || "Sans nom")}${s.archived ? ' <span class="tag">archivée</span>' : ""}
-        <span class="muted small">${esc(s.savedAt || "")}</span></span>
+      <span class="sim-name">${who}${esc(s.clientName || s.name || "Sans nom")}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">vente effective</span>' : ""}
+        <span class="muted small">${esc(s.savedAt || "")}${s.sold ? " · vendue le " + esc(dateShort(s.soldAt)) : ""}</span></span>
       <span class="sim-actions">
         <button class="btn small" data-action="load-sim" data-sim="${s.id}">Charger</button>
+        ${(owner || ADMIN)
+          ? (s.sold
+            ? `<button class="btn small ghost" data-action="unsell-sim" data-sim="${s.id}">↺ Repasser en proposition</button>`
+            : `<button class="btn small" data-action="sell-sim" data-sim="${s.id}">✔ Vente effective</button>`)
+          : ""}
         ${s.archived
           ? ((owner || ADMIN) ? `<button class="btn small ghost" data-action="unarch-sim" data-sim="${s.id}">Désarchiver</button>` : "")
           : ((owner || ADMIN) ? `<button class="btn small ghost" data-action="arch-sim" data-sim="${s.id}">Archiver</button>` : "")}
@@ -445,6 +458,139 @@ function renderSaved() {
       </span>
     </div>`;
   }).join("");
+}
+
+/* -------------------- Marges (cumul par utilisateur) --------------------
+   Une ligne par machine des simulations marquées « vente effective »
+   (les propositions non converties ne comptent pas dans les cumuls). */
+const MOIS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+
+function periodKeys(iso) {
+  const parts = String(iso || "").split("-").map(Number);
+  const y = parts[0], mo = parts[1];
+  if (!y || !mo) return null;
+  const q = Math.ceil(mo / 3);
+  return {
+    month: `${y}-${String(mo).padStart(2, "0")}`, monthLabel: `${MOIS_FR[mo - 1]} ${y}`,
+    quarter: `${y}-T${q}`, quarterLabel: `T${q} ${y}`,
+    year: String(y), yearLabel: String(y),
+  };
+}
+
+/* Construit une ligne de rapport par machine, pour les ventes effectives
+   visibles par l'utilisateur courant (les siennes, ou toutes si admin). */
+function marginRows() {
+  let sims = loadSims().filter((s) => s.sold);
+  if (!ADMIN) sims = sims.filter((s) => s.userId === CURRENT_USER.id);
+  else if (MARGINS_USER_FILTER) sims = sims.filter((s) => s.userId === MARGINS_USER_FILTER);
+  const rows = [];
+  sims.forEach((s) => {
+    let st; try { st = normalizeState(JSON.parse(JSON.stringify(s.state))); } catch (e) { return; }
+    const calc = computeAll(st);
+    st.machines.forEach((m, i) => {
+      const r = calc.rows[i]; if (!r) return;
+      const logistique = num(m.installation) + num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait);
+      rows.push({
+        simId: s.id, userName: s.userName || "—", date: s.soldAt || st.client.date || "",
+        client: st.client.name || s.clientName || "—",
+        type: m.prospect ? "Prospect" : "Client",
+        machine: m.proposedModel || "—",
+        financed: r.financed, livraison: r.fraisLivraisonFacturer,
+        prixCession: r.prixMachineEff, logistique,
+        rachatLocation: r.rachatLocation, rachatMaintenance: r.rachatMaintenance,
+        marge: r.margeFinale,
+      });
+    });
+  });
+  rows.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  return rows;
+}
+
+const MARGIN_COLS = [
+  ["financed", "Montant financé"], ["livraison", "Frais livraison facturés"],
+  ["prixCession", "Prix de cession machine + access."], ["logistique", "Livraison/retrait/installation"],
+  ["rachatLocation", "Rachat location"], ["rachatMaintenance", "Rachat maintenance"], ["marge", "Marge"],
+];
+
+function sumRows(rows) {
+  const out = { count: rows.length };
+  MARGIN_COLS.forEach(([k]) => { out[k] = rows.reduce((a, r) => a + r[k], 0); });
+  return out;
+}
+/* Regroupe les lignes par période (mois/trimestre/année civile) et cumule. */
+function groupByPeriod(rows, kind) {
+  const buckets = new Map();
+  rows.forEach((r) => {
+    const pk = periodKeys(r.date); if (!pk) return;
+    const key = pk[kind], label = pk[kind + "Label"];
+    if (!buckets.has(key)) buckets.set(key, { key, label, rows: [] });
+    buckets.get(key).rows.push(r);
+  });
+  return [...buckets.values()]
+    .sort((a, b) => b.key.localeCompare(a.key))
+    .map((b) => ({ label: b.label, ...sumRows(b.rows) }));
+}
+
+function marginsSummaryTable(title, groups) {
+  if (!groups.length) return "";
+  return `<div class="subgrid"><h4>${title}</h4>
+    <div class="table-wrap"><table class="margins-table">
+      <thead><tr><th>Période</th><th>Ventes</th>${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead>
+      <tbody>${groups.map((g) => `<tr><td>${esc(g.label)}</td><td>${g.count}</td>${MARGIN_COLS.map(([k]) => `<td>${eur(g[k])}</td>`).join("")}</tr>`).join("")}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderMargins() {
+  const rows = marginRows();
+  const totals = sumRows(rows);
+  const byMonth = groupByPeriod(rows, "month");
+  const byQuarter = groupByPeriod(rows, "quarter");
+  const byYear = groupByPeriod(rows, "year");
+  const userOptions = ADMIN
+    ? `<label class="fld"><span>Utilisateur</span>
+        <select id="margins-user-select">
+          <option value="">Tous les utilisateurs</option>
+          ${loadUsers().map((u) => `<option value="${u.id}" ${u.id === MARGINS_USER_FILTER ? "selected" : ""}>${esc(u.name || u.username)}</option>`).join("")}
+        </select></label>`
+    : "";
+
+  document.getElementById("screen").innerHTML = `
+    <section class="card">
+      <div class="card-head"><h2>Marges — ventes effectives</h2>
+        <button class="btn ghost small" data-action="close-margins">← Retour au simulateur</button></div>
+      <p class="muted small">Seules les simulations marquées « vente effective » comptent dans ces cumuls —
+        une proposition non convertie ne fausse pas les totaux.</p>
+      ${userOptions ? `<div class="grid">${userOptions}</div>` : ""}
+      ${rows.length ? "" : '<p class="muted">Aucune vente effective enregistrée pour l\'instant.</p>'}
+    </section>
+    ${rows.length ? `
+    <section class="card">
+      <h2>Total cumulé</h2>
+      <div class="table-wrap"><table class="margins-table">
+        <thead><tr><th>Ventes</th>${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead>
+        <tbody><tr><td>${totals.count}</td>${MARGIN_COLS.map(([k]) => `<td>${eur(totals[k])}</td>`).join("")}</tr></tbody>
+      </table></div>
+    </section>
+    <section class="card">
+      ${marginsSummaryTable("Cumul mensuel", byMonth)}
+      ${marginsSummaryTable("Cumul trimestriel (trimestres civils)", byQuarter)}
+      ${marginsSummaryTable("Cumul annuel (année civile)", byYear)}
+    </section>
+    <section class="card">
+      <h2>Détail des ventes</h2>
+      <div class="table-wrap"><table class="margins-table">
+        <thead><tr><th>Date</th>${ADMIN ? "<th>Commercial</th>" : ""}<th>Client</th><th>Type</th><th>Machine</th>
+          ${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead>
+        <tbody>${rows.map((r) => `<tr>
+          <td>${esc(dateShort(r.date))}</td>
+          ${ADMIN ? `<td>${esc(r.userName)}</td>` : ""}
+          <td>${esc(r.client)}</td><td>${esc(r.type)}</td><td>${esc(r.machine)}</td>
+          ${MARGIN_COLS.map(([k]) => `<td>${eur(r[k])}</td>`).join("")}
+        </tr>`).join("")}</tbody>
+      </table></div>
+    </section>` : ""}`;
 }
 
 function renderUsers() {
@@ -674,6 +820,11 @@ document.addEventListener("change", (e) => {
     if (CURRENT_USER && t.dataset.uid === CURRENT_USER.id) { CURRENT_USER[t.dataset.key] = t.value; if (t.dataset.key === "name") updateTopbar(); }
     return;
   }
+  if (t.id === "margins-user-select") {
+    MARGINS_USER_FILTER = t.value;
+    renderMargins();
+    return;
+  }
   if (t.id === "cfg-cat" || t.id === "cfg-machine") {
     if (t.id === "cfg-cat") CONFIG_DRAFT.category = t.value; else CONFIG_DRAFT.machine = t.value;
     CONFIG_DRAFT.machine = t.id === "cfg-cat" ? "" : CONFIG_DRAFT.machine;
@@ -773,6 +924,8 @@ document.addEventListener("click", async (e) => {
     case "admin-clear-override": STATE.coeffOverride = ""; saveState(STATE); renderAdmin(); renderResults(); break;
     case "retry-firebase": location.reload(); break;
     case "open-users": if (ADMIN) openUsersModal(); break;
+    case "open-margins": SHOW_MARGINS = true; renderMargins(); break;
+    case "close-margins": SHOW_MARGINS = false; renderApp(); break;
     case "close-users": closeUsersModal(); break;
     case "open-config": await openConfigModal(mid); break;
     case "close-config": closeConfigModal(); break;
@@ -835,6 +988,15 @@ document.addEventListener("click", async (e) => {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
       if (!ADMIN && s.userId !== CURRENT_USER.id) break;
       s.archived = (a === "arch-sim"); await Store.putSim(s); renderSaved();
+      break;
+    }
+    case "sell-sim": case "unsell-sim": {
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
+      s.sold = (a === "sell-sim");
+      if (s.sold) s.soldAt = (s.state && s.state.client && s.state.client.date) || todayISO();
+      await Store.putSim(s); renderSaved();
+      flash(s.sold ? "Simulation marquée comme vente effective." : "Repassée en proposition.");
       break;
     }
     case "del-sim": {
