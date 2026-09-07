@@ -53,6 +53,8 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
   color: var(--muted); font-size: 14px; pointer-events: none; }
 .fld.chk { flex-direction: row; align-items: center; gap: 8px; grid-column: 1 / -1; }
 .fld.chk input { width: auto; }
+.computed-value { display: block; font-size: 15px; color: var(--ink); background: var(--field);
+  border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; }
 
 /* Ligne compacte (Prix machine, Dérogation, Installation, Livraison, Retrait) :
    tient toujours sur une seule ligne, les champs se resserrent plutôt que de

@@ -15,6 +15,7 @@ let SHOW_MARGINS = false;     // écran « Marges » (cumul par utilisateur) aff
 let MARGINS_USER_FILTER = ""; // admin : userId sélectionné, "" = tous
 let MARGINS_MONTH = "";       // mois consulté ("YYYY-MM"), "" = mois en cours
 let MANUAL_SALE_OPEN = false; // formulaire « vente en saisie libre » ouvert ?
+let MANUAL_SALE_EDIT_ID = ""; // id de la vente manuelle en cours de modification, "" = nouvelle vente
 let DATE_MODAL_SIM = "";      // id de la simulation dont on édite la date de signature
 
 const NUM = "num", TXT = "txt";
@@ -565,21 +566,43 @@ function periodTotalTable(title, totals) {
   </section>`;
 }
 
-function manualSaleForm() {
-  return `<div class="subgrid"><h4>Nouvelle vente en saisie libre</h4>
+/* La marge n'est pas saisie : elle se déduit des autres montants, avec la
+   même formule que pour une simulation complète (financé - rachats - prix
+   de cession - coûts logistiques + frais de livraison facturés). */
+const MANUAL_MARGIN_INPUT_COLS = MARGIN_COLS.filter(([k]) => k !== "marge");
+function computeManualMarge(v) {
+  return num(v.financed) - num(v.rachatLocation) - num(v.rachatMaintenance) - num(v.prixCession) - num(v.logistique) + num(v.livraison);
+}
+function manualMarginFieldsFromDom() {
+  const v = {};
+  MANUAL_MARGIN_INPUT_COLS.forEach(([k]) => { const el = document.getElementById("ms-" + k); v[k] = el ? el.value : 0; });
+  return v;
+}
+
+/* Formulaire de saisie libre ; `sale` fourni = modification d'une vente
+   manuelle existante (préremplie), sinon nouvelle vente. */
+function manualSaleForm(sale) {
+  const editing = !!sale;
+  const val = (k) => editing ? num(sale[k]) : 0;
+  const initialMarge = editing ? computeManualMarge(sale) : 0;
+  return `<div class="subgrid"><h4>${editing ? "Modifier la vente en saisie libre" : "Nouvelle vente en saisie libre"}</h4>
     <p class="hint">À utiliser si un dossier a été signé sans passer par une proposition du simulateur,
       ou pour rattraper une vente d'un mois déjà écoulé.</p>
     <div class="grid">
-      <label class="fld"><span>Date de la vente</span><input type="date" id="ms-date" value="${esc(todayISO())}"></label>
-      <label class="fld"><span>Client</span><input type="text" id="ms-client" placeholder="Nom du client"></label>
-      <label class="fld"><span>Type</span><select id="ms-type"><option value="client">Client</option><option value="prospect">Prospect</option></select></label>
-      <label class="fld"><span>Machine</span><input type="text" id="ms-machine" placeholder="Référence machine"></label>
+      <label class="fld"><span>Date de la vente</span><input type="date" id="ms-date" value="${esc(editing ? sale.soldAt : todayISO())}"></label>
+      <label class="fld"><span>Client</span><input type="text" id="ms-client" placeholder="Nom du client" value="${esc(editing ? sale.clientName : "")}"></label>
+      <label class="fld"><span>Type</span><select id="ms-type">
+        <option value="client" ${!(editing && sale.prospect) ? "selected" : ""}>Client</option>
+        <option value="prospect" ${editing && sale.prospect ? "selected" : ""}>Prospect</option>
+      </select></label>
+      <label class="fld"><span>Machine</span><input type="text" id="ms-machine" placeholder="Référence machine" value="${esc(editing ? sale.machine : "")}"></label>
     </div>
     <div class="grid">
-      ${MARGIN_COLS.map(([k, l]) => `<label class="fld money"><span>${l}</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" id="ms-${k}" value="0">`)}</label>`).join("")}
+      ${MANUAL_MARGIN_INPUT_COLS.map(([k, l]) => `<label class="fld money"><span>${l}</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" id="ms-${k}" value="${val(k)}">`)}</label>`).join("")}
+      <label class="fld"><span>Marge <small>(calculée automatiquement)</small></span><b id="ms-marge-preview" class="computed-value">${eur(initialMarge)}</b></label>
     </div>
     <div class="actions">
-      <button class="btn primary small" data-action="save-manual-sale">Enregistrer la vente</button>
+      <button class="btn primary small" data-action="save-manual-sale" data-sim="${editing ? sale.id : ""}">Enregistrer la vente</button>
       <button class="btn ghost small" data-action="cancel-manual-sale">Annuler</button>
     </div>
   </div>`;
@@ -644,7 +667,7 @@ function renderMargins() {
           ? ""
           : `<button class="btn ghost small" data-action="open-manual-sale">＋ Ajouter une vente en saisie libre</button>`}
       </div>
-      ${MANUAL_SALE_OPEN ? manualSaleForm() : ""}
+      ${MANUAL_SALE_OPEN ? manualSaleForm(MANUAL_SALE_EDIT_ID ? loadSims().find((s) => s.id === MANUAL_SALE_EDIT_ID) : null) : ""}
       ${rows.length ? "" : '<p class="muted">Aucun dossier signé enregistré pour l\'instant.</p>'}
     </section>
     ${rows.length ? `
@@ -657,7 +680,7 @@ function renderMargins() {
           ${ADMIN ? `<td>${esc(r.userName)}</td>` : ""}
           <td>${esc(r.client)}</td><td>${esc(r.type)}</td><td>${esc(r.machine)}${r.manual ? ' <span class="tag">manuel</span>' : ""}</td>
           ${MARGIN_COLS.map(([k]) => `<td>${eur(r[k])}</td>`).join("")}
-          ${hasManual ? `<td>${r.manual ? `<button class="btn ghost small" data-action="del-manual-sale" data-sim="${r.simId}">✕</button>` : ""}</td>` : ""}
+          ${hasManual ? `<td>${r.manual ? `<button class="btn ghost small" data-action="edit-manual-sale" data-sim="${r.simId}">✎</button> <button class="btn ghost small" data-action="del-manual-sale" data-sim="${r.simId}">✕</button>` : ""}</td>` : ""}
         </tr>`).join("")}
         <tr class="total-row"><td><b>Total</b></td>${ADMIN ? "<td></td>" : ""}<td></td><td>${monthTotals.count} vente${monthTotals.count > 1 ? "s" : ""}</td>
           ${MARGIN_COLS.map(([k]) => `<td><b>${eur(monthTotals[k])}</b></td>`).join("")}${hasManual ? "<td></td>" : ""}
@@ -847,6 +870,11 @@ function commit() { saveState(STATE); renderResults(); }
 
 document.addEventListener("input", (e) => {
   const t = e.target;
+  if (t.id && t.id.startsWith("ms-") && t.id !== "ms-marge-preview") {
+    const preview = document.getElementById("ms-marge-preview");
+    if (preview) preview.textContent = eur(computeManualMarge(manualMarginFieldsFromDom()));
+    return;
+  }
   if (t.dataset && t.dataset.cfg === "qty") {
     if (CONFIG_DRAFT && CONFIG_DRAFT.items[t.dataset.key]) {
       CONFIG_DRAFT.items[t.dataset.key].qty = Math.max(1, Math.round(num(t.value)) || 1);
@@ -1080,22 +1108,33 @@ document.addEventListener("click", async (e) => {
       s.archived = (a === "arch-sim"); await Store.putSim(s); renderSaved();
       break;
     }
-    case "open-manual-sale": MANUAL_SALE_OPEN = true; renderMargins(); break;
-    case "cancel-manual-sale": MANUAL_SALE_OPEN = false; renderMargins(); break;
+    case "open-manual-sale": MANUAL_SALE_OPEN = true; MANUAL_SALE_EDIT_ID = ""; renderMargins(); break;
+    case "edit-manual-sale": {
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
+      MANUAL_SALE_OPEN = true; MANUAL_SALE_EDIT_ID = s.id;
+      renderMargins();
+      break;
+    }
+    case "cancel-manual-sale": MANUAL_SALE_OPEN = false; MANUAL_SALE_EDIT_ID = ""; renderMargins(); break;
     case "save-manual-sale": {
       const val = (id) => document.getElementById(id).value;
       const client = val("ms-client").trim();
       if (!client) { alert("Le nom du client est obligatoire."); break; }
-      const sale = {
-        id: cryptoId(), userId: CURRENT_USER.id, userName: CURRENT_USER.name,
-        manual: true, sold: true, soldAt: val("ms-date") || todayISO(),
-        clientName: client, prospect: val("ms-type") === "prospect", machine: val("ms-machine").trim(),
+      const editId = btn.dataset.sim;
+      const existing = editId ? loadSims().find((x) => x.id === editId) : null;
+      if (editId && (!existing || (!ADMIN && existing.userId !== CURRENT_USER.id))) break;
+      const sale = existing || {
+        id: cryptoId(), userId: CURRENT_USER.id, userName: CURRENT_USER.name, manual: true, sold: true,
       };
-      MARGIN_COLS.forEach(([k]) => { sale[k] = num(val("ms-" + k)); });
+      sale.soldAt = val("ms-date") || todayISO();
+      sale.clientName = client; sale.prospect = val("ms-type") === "prospect"; sale.machine = val("ms-machine").trim();
+      MANUAL_MARGIN_INPUT_COLS.forEach(([k]) => { sale[k] = num(val("ms-" + k)); });
+      sale.marge = computeManualMarge(sale);
       await Store.putSim(sale);
-      MANUAL_SALE_OPEN = false;
+      MANUAL_SALE_OPEN = false; MANUAL_SALE_EDIT_ID = "";
       renderMargins();
-      flash("Vente ajoutée.");
+      flash(existing ? "Vente modifiée." : "Vente ajoutée.");
       break;
     }
     case "del-manual-sale": {
