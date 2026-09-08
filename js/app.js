@@ -7,6 +7,7 @@ let STATE = null;
 let CURRENT_USER = null;
 let ADMIN = false;
 let SHOW_ARCHIVED = false;
+let SAVED_USER_FILTER = ""; // admin : userId sélectionné pour la liste des simulations enregistrées, "" = tous
 let COEFF_UNLOCKED = false;   // barème masqué tant que non déverrouillé
 let CATALOG = null;           // catalogue Canon (assets/catalog.json), chargé à la demande
 let CONFIG_MID = null;        // machine en cours d'édition dans le configurateur
@@ -362,6 +363,11 @@ function renderApp() {
       ${(FIREBASE_READY && Store.mode !== "firebase")
         ? `<p class="diag">⚠️ Partage en ligne inactif — raison : <b>${esc(Store.lastError || "inconnue")}</b>. Les données restent locales à ce poste.</p>`
         : ""}
+      ${ADMIN ? `<div class="grid"><label class="fld"><span>Commercial</span>
+        <select id="saved-user-select">
+          <option value="">Tous les utilisateurs</option>
+          ${loadUsers().map((u) => `<option value="${u.id}" ${u.id === SAVED_USER_FILTER ? "selected" : ""}>${esc(u.name || u.username)}</option>`).join("")}
+        </select></label></div>` : ""}
       <div id="saved-list" class="saved"></div>
     </section>
     <section class="card">
@@ -449,6 +455,7 @@ function renderSaved() {
   const box = document.getElementById("saved-list"); if (!box) return;
   let list = loadSims();
   if (!ADMIN) list = list.filter((s) => s.userId === CURRENT_USER.id);
+  else if (SAVED_USER_FILTER) list = list.filter((s) => s.userId === SAVED_USER_FILTER);
   if (!SHOW_ARCHIVED) list = list.filter((s) => !s.archived);
   // tri : nom de la personne puis nom du client
   list.sort((a, b) => (a.userName || "").localeCompare(b.userName || "") ||
@@ -921,6 +928,11 @@ document.addEventListener("change", (e) => {
   if (t.dataset && t.dataset.scope === "user") { // édition d'un profil utilisateur (au blur)
     updateUserProfile(t.dataset.uid, { [t.dataset.key]: t.value });
     if (CURRENT_USER && t.dataset.uid === CURRENT_USER.id) { CURRENT_USER[t.dataset.key] = t.value; if (t.dataset.key === "name") updateTopbar(); }
+    return;
+  }
+  if (t.id === "saved-user-select") {
+    SAVED_USER_FILTER = t.value;
+    renderSaved();
     return;
   }
   if (t.id === "margins-user-select") {
