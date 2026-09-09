@@ -876,12 +876,14 @@ function renderResults() {
   res.innerHTML = `
     <h2>Synthèse (${perAdj(STATE)})</h2>
     <div class="totals">
-      <div class="tot"><span>Situation actuelle</span><b>${eur(c.saTotal / div)}</b><small>${perShort(STATE)}</small></div>
-      <div class="tot"><span>Solution proposée</span><b>${eur(c.spTotal / div)}</b><small>${perShort(STATE)}</small></div>
+      <div class="tot"><span>Situation actuelle</span><b>${eur(c.saTotal / div)}</b><small>${perShort(STATE)}</small>
+        <small class="tot-detail">Loyer : ${eur(c.saLoyerTotal / div)} · Maintenance : ${eur(c.saMaintTotal / div)}</small></div>
+      <div class="tot"><span>Solution proposée</span><b>${eur(c.spTotal / div)}</b><small>${perShort(STATE)}</small>
+        <small class="tot-detail">Loyer : ${eur(c.spLoyerTotal / div)} · Maintenance : ${eur(c.spMaintTotal / div)}</small></div>
       <div class="tot big ${eco >= 0 ? "pos" : "neg"}"><span>${eco >= 0 ? "Économie" : "Surcoût"} annuel</span>
         <b>${eur(Math.abs(eco))}</b><small>${eur(Math.abs(c.savingQuarter) / div)} ${perShort(STATE)} · ${frNum(Math.abs(c.savingPct), 1)} %</small></div>
     </div>
-    <p class="muted small">Loyer proposé total : ${eur(c.spLoyerTotal / div)} ${perShort(STATE)} · Coût total de la maintenance : ${eur(c.spMaintTotal / div)} ${perShort(STATE)} · ${c.durationTrim} trimestres · ${esc(STATE.leaser)}</p>`;
+    <p class="muted small">${c.durationTrim} trimestres · ${esc(STATE.leaser)}</p>`;
 }
 
 /* -------------------- Événements -------------------- */

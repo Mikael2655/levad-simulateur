@@ -174,14 +174,16 @@ function computeAll(state) {
   const sum = (side, key) => rows.reduce((a, r) => a + r[side][key], 0);
   const saTotal = sum("sa", "total"), spTotal = sum("sp", "total");
   const savingQuarter = saTotal - spTotal;
+  const saLoyerTotal = sum("sa", "loyer");
   const spLoyerTotal = sum("sp", "loyer");
-  // coût total de la maintenance proposée : coûts page + abonnements (hors loyer)
+  // coût total de la maintenance (actuelle / proposée) : coûts page + abonnements (hors loyer)
+  const saMaintTotal = sum("sa", "maintNB") + sum("sa", "maintCoul") + sum("sa", "servTotal");
   const spMaintTotal = sum("sp", "maintNB") + sum("sp", "maintCoul") + sum("sp", "servTotal");
   return {
     rows, saTotal, spTotal,
     savingQuarter, savingYear: savingQuarter * 4,
     savingPct: saTotal ? (savingQuarter / saTotal) * 100 : 0,
-    spLoyerTotal, spMaintTotal,
+    saLoyerTotal, saMaintTotal, spLoyerTotal, spMaintTotal,
     rachatTotal: rows.reduce((a, r) => a + r.rachat, 0),
     durationTrim: state.durationTrim,
     divisor: state.periodicite === "M" ? 3 : 1,
