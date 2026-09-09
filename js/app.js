@@ -70,10 +70,16 @@ function closeUsersModal() {
   modal.hidden = true;
 }
 
-/* Modale de saisie de la date de signature (calendrier + bouton « Aujourd'hui »). */
-function openDateModal(simId, defaultIso) {
+/* Modale de saisie de la date de signature (calendrier + bouton « Aujourd'hui »)
+   + périodicité réellement signée (trimestrielle par défaut : basculer le
+   simulateur en mensuel sert le plus souvent qu'à présenter l'offre au
+   client, sans que le contrat signé soit mensuel pour autant — la
+   majoration de 1,5% ne doit donc pas s'appliquer par défaut dans les
+   marges). */
+function openDateModal(simId, defaultIso, defaultPeriodicite) {
   DATE_MODAL_SIM = simId;
   document.getElementById("date-modal-input").value = defaultIso || todayISO();
+  document.getElementById("date-modal-periodicite").value = defaultPeriodicite || "T";
   document.getElementById("date-modal").hidden = false;
 }
 function closeDateModal() {
@@ -527,6 +533,12 @@ function marginRows() {
       return;
     }
     let st; try { st = normalizeState(JSON.parse(JSON.stringify(s.state))); } catch (e) { return; }
+    // basculer le simulateur en mensuel sert le plus souvent qu'à présenter
+    // l'offre au client, sans que le contrat signé soit mensuel pour autant :
+    // si signé trimestriellement, on neutralise la majoration de 1,5% dans
+    // le calcul de marge (sans toucher à la périodicité elle-même, qui sert
+    // aussi à interpréter le loyer cible saisi).
+    if (s.signedPeriodicite === "T" && st.periodicite === "M") st.noMajoration = true;
     const calc = computeAll(st);
     st.machines.forEach((m, i) => {
       const r = calc.rows[i]; if (!r) return;
@@ -1161,7 +1173,7 @@ document.addEventListener("click", async (e) => {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
       if (!ADMIN && s.userId !== CURRENT_USER.id) break;
       const defaultDate = s.soldAt || (s.state && s.state.client && s.state.client.date) || todayISO();
-      openDateModal(s.id, defaultDate);
+      openDateModal(s.id, defaultDate, s.signedPeriodicite);
       break;
     }
     case "unsell-sim": {
@@ -1184,6 +1196,7 @@ document.addEventListener("click", async (e) => {
       const s = loadSims().find((x) => x.id === DATE_MODAL_SIM);
       if (s && (ADMIN || s.userId === CURRENT_USER.id)) {
         s.sold = true; s.soldAt = iso;
+        s.signedPeriodicite = document.getElementById("date-modal-periodicite").value === "M" ? "M" : "T";
         await Store.putSim(s);
       }
       closeDateModal();

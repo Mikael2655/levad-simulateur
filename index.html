@@ -53,6 +53,11 @@
     <div class="modal-panel date-panel">
       <div class="card-head"><h2>Date de signature</h2></div>
       <label class="fld"><span>Date</span><input type="date" id="date-modal-input"></label>
+      <label class="fld"><span>Signé</span>
+        <select id="date-modal-periodicite">
+          <option value="T" selected>Trimestriellement</option>
+          <option value="M">Mensuellement</option>
+        </select></label>
       <div class="actions">
         <button class="btn ghost small" data-action="date-modal-today">Aujourd'hui</button>
         <button class="btn primary small" data-action="date-modal-confirm">Valider</button>

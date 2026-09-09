@@ -42,9 +42,16 @@ function baseCoeff(state, financed) {
   if (!row) return 0;
   return row[trancheIndex(financed)];
 }
+/* Majoration mensuelle applicable : normalement liée à la périodicité, mais
+   peut être neutralisée (state.noMajoration) — utilisé pour recalculer la
+   marge d'un dossier signé trimestriellement alors que le simulateur avait
+   été basculé en mensuel juste pour la présentation de l'offre au client. */
+function majoFactor(state) {
+  return (state.periodicite === "M" && !state.noMajoration) ? MAJ_MENSUEL : 1;
+}
 /* Coefficient effectif (majoré en mensuel). */
 function effCoeff(state, financed) {
-  return baseCoeff(state, financed) * (state.periodicite === "M" ? MAJ_MENSUEL : 1);
+  return baseCoeff(state, financed) * majoFactor(state);
 }
 
 /* Rachat du contrat actuel — isolé en 2 composantes : la location (solde des
@@ -69,7 +76,7 @@ function rachatMachine(m) {
    auto-cohérente ; en cas d'ambiguïté (bord de tranche) on retient le meilleur
    (montant financé le plus élevé = plus de marge). */
 function financedFromLoyer(state, loyerT) {
-  const majo = state.periodicite === "M" ? MAJ_MENSUEL : 1;
+  const majo = majoFactor(state);
   const ov = num(state.coeffOverride);
   if (state.coeffOverride !== "" && ov > 0) return loyerT * 100 / (ov * majo);
   const row = (BAREME[state.leaser] || BAREME.GRENKE)[state.durationTrim];
