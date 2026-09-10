@@ -18,6 +18,7 @@ let MARGINS_MONTH = "";       // mois consulté ("YYYY-MM"), "" = mois en cours
 let MANUAL_SALE_OPEN = false; // formulaire « vente en saisie libre » ouvert ?
 let MANUAL_SALE_EDIT_ID = ""; // id de la vente manuelle en cours de modification, "" = nouvelle vente
 let DATE_MODAL_SIM = "";      // id de la simulation dont on édite la date de signature
+let LOADED_SIM_ID = "";       // id de la simulation actuellement chargée (« Charger »), "" = nouvelle saisie
 
 const NUM = "num", TXT = "txt";
 
@@ -85,6 +86,40 @@ function openDateModal(simId, defaultIso, defaultPeriodicite) {
 function closeDateModal() {
   DATE_MODAL_SIM = "";
   document.getElementById("date-modal").hidden = true;
+}
+
+/* Nom de base d'une simulation, sans le suffixe de version (« … v2 », « … v3 »…). */
+function baseSimName(name) {
+  return String(name || "").replace(/\s+v\d+$/i, "").trim();
+}
+/* Prochain nom de version disponible pour ce nom de base (v2, v3, …), en
+   tenant compte des versions déjà enregistrées par cet utilisateur. */
+function nextVersionedName(name, userId) {
+  const base = baseSimName(name);
+  const used = new Set([1]);
+  loadSims().filter((x) => x.userId === userId).forEach((x) => {
+    if (baseSimName(x.name) === base) {
+      const m = /\sv(\d+)$/i.exec(x.name || "");
+      used.add(m ? parseInt(m[1], 10) : 1);
+    }
+  });
+  let n = 2; while (used.has(n)) n++;
+  return `${base} v${n}`;
+}
+
+/* Modale proposée à l'enregistrement d'une simulation chargée : remplacer
+   l'existante ou créer une nouvelle version (v2, v3…). */
+function openSaveModal(loaded) {
+  const nextName = nextVersionedName(loaded.name, loaded.userId);
+  document.getElementById("save-modal-text").textContent =
+    `« ${loaded.name} » a été chargée. Remplacer cette simulation par la saisie actuelle, ou l'enregistrer comme une nouvelle version ?`;
+  const btn = document.querySelector('[data-action="save-modal-newversion"]');
+  btn.textContent = `＋ Nouvelle version (${nextName})`;
+  btn.dataset.nextName = nextName;
+  document.getElementById("save-modal").hidden = false;
+}
+function closeSaveModal() {
+  document.getElementById("save-modal").hidden = true;
 }
 
 /* -------------------- Configurateur Canon -------------------- */
@@ -1044,7 +1079,7 @@ document.addEventListener("click", async (e) => {
       STATE.machines = STATE.machines.filter((x) => x.id !== mid);
       saveState(STATE); renderMachines(); renderResults(); break;
     case "reset":
-      if (confirm("Réinitialiser toute la saisie ?")) { STATE = defaultState(); saveState(STATE); renderApp(); } break;
+      if (confirm("Réinitialiser toute la saisie ?")) { STATE = defaultState(); LOADED_SIM_ID = ""; saveState(STATE); renderApp(); } break;
     case "export-xlsx":
       try { await exportExcel(STATE, computeAll(STATE)); flash("Excel généré."); }
       catch (err) { flash("Erreur Excel : " + err.message, true); console.error(err); } break;
@@ -1103,11 +1138,13 @@ document.addEventListener("click", async (e) => {
         repPhone: CURRENT_USER.phone || "01 70 72 19 40", repMobile: CURRENT_USER.mobile || "",
         repEmail: CURRENT_USER.email || "", repEmailManual: !!CURRENT_USER.email,
       };
-      STATE = fresh; saveState(STATE); renderApp(); flash("Nouvelle simulation.");
+      STATE = fresh; LOADED_SIM_ID = ""; saveState(STATE); renderApp(); flash("Nouvelle simulation.");
       break;
     }
     case "toggle-arch": SHOW_ARCHIVED = !SHOW_ARCHIVED; renderApp(); break;
     case "save-sim": {
+      const loaded = LOADED_SIM_ID ? loadSims().find((x) => x.id === LOADED_SIM_ID) : null;
+      if (loaded && (ADMIN || loaded.userId === CURRENT_USER.id)) { openSaveModal(loaded); break; }
       const def = ((STATE.client.name || "Simulation") + " — " + dateShort(STATE.client.date || todayISO()));
       const name = prompt("Nom de la simulation :", def); if (!name) break;
       const existing = loadSims().find((x) => x.userId === CURRENT_USER.id && x.name === name);
@@ -1118,13 +1155,37 @@ document.addEventListener("click", async (e) => {
         archived: existing ? !!existing.archived : false,
         state: JSON.parse(JSON.stringify(STATE)),
       };
-      await Store.putSim(snap); renderSaved(); flash("Simulation enregistrée.");
+      await Store.putSim(snap); LOADED_SIM_ID = snap.id; renderSaved(); flash("Simulation enregistrée.");
+      break;
+    }
+    case "save-modal-cancel": closeSaveModal(); break;
+    case "save-modal-replace": {
+      const loaded = loadSims().find((x) => x.id === LOADED_SIM_ID);
+      closeSaveModal(); if (!loaded) break;
+      const snap = {
+        ...loaded, clientName: STATE.client.name || "", savedAt: new Date().toLocaleString("fr-FR"),
+        state: JSON.parse(JSON.stringify(STATE)),
+      };
+      await Store.putSim(snap); renderSaved(); flash("Simulation remplacée.");
+      break;
+    }
+    case "save-modal-newversion": {
+      const loaded = loadSims().find((x) => x.id === LOADED_SIM_ID);
+      const nextName = btn.dataset.nextName;
+      closeSaveModal(); if (!loaded || !nextName) break;
+      const snap = {
+        id: cryptoId(), userId: loaded.userId, userName: loaded.userName,
+        name: nextName, clientName: STATE.client.name || "", savedAt: new Date().toLocaleString("fr-FR"),
+        archived: false, state: JSON.parse(JSON.stringify(STATE)),
+      };
+      await Store.putSim(snap); LOADED_SIM_ID = snap.id; renderSaved(); flash(`Nouvelle version enregistrée (${nextName}).`);
       break;
     }
     case "load-sim": {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
       if (!ADMIN && s.userId !== CURRENT_USER.id) break;
       STATE = normalizeState(JSON.parse(JSON.stringify(s.state)));
+      LOADED_SIM_ID = s.id;
       saveState(STATE); renderApp(); flash("Simulation chargée.");
       break;
     }

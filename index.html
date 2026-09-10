@@ -66,6 +66,18 @@
     </div>
   </div>
 
+  <div id="save-modal" class="modal-overlay" hidden>
+    <div class="modal-panel save-panel">
+      <div class="card-head"><h2>Enregistrer la simulation</h2></div>
+      <p id="save-modal-text" class="muted small"></p>
+      <div class="actions">
+        <button class="btn primary small" data-action="save-modal-replace">↺ Remplacer l'existante</button>
+        <button class="btn small" data-action="save-modal-newversion"></button>
+        <button class="btn ghost small" data-action="save-modal-cancel">Annuler</button>
+      </div>
+    </div>
+  </div>
+
   <div id="cfg-info-popup" class="cfg-info-popup" hidden>
     <button type="button" class="cfg-info-close" data-action="close-cfg-info">✕</button>
     <div id="cfg-info-text"></div>

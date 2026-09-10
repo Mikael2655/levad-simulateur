@@ -193,6 +193,9 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .modal-panel.config-panel { max-width: 860px; }
 .modal-panel.date-panel { max-width: 320px; }
 .date-panel .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.modal-panel.save-panel { max-width: 420px; }
+.save-panel .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.save-panel .actions .btn { width: 100%; }
 .config-panel .actions { position: sticky; bottom: 0; z-index: 5; margin: 16px -16px -16px;
   padding: 12px 16px; background: var(--card); border-top: 1px solid var(--line);
   border-radius: 0 0 14px 14px; box-shadow: 0 -4px 10px rgba(0,0,0,.08); }
