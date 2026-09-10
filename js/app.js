@@ -302,6 +302,7 @@ async function doLogin() {
 const SA_MAIN = [
   { k: "currentModel", label: "Machine actuelle", t: TXT, wide: true },
   { k: "loyerActuel", label: "Loyer actuel / trim (€)", t: NUM },
+  { k: "assuranceActuelle", label: "Assurance / autre / trim (€)", t: NUM },
   { k: "trimRestants", label: "Trimestres restants", t: NUM },
 ];
 const SA_NB = [
@@ -931,7 +932,7 @@ function renderResults() {
     <h2>Synthèse (${perAdj(STATE)})</h2>
     <div class="totals">
       <div class="tot"><span>Situation actuelle</span><b>${eur(c.saTotal / div)} <small class="unit">${perShort(STATE)}</small></b>
-        <small class="tot-detail">Loyer : ${eur(c.saLoyerTotal / div)} · Maintenance : ${eur(c.saMaintTotal / div)}</small></div>
+        <small class="tot-detail">Loyer : ${eur(c.saLoyerTotal / div)}${c.saAssuranceTotal ? ` · Assurance : ${eur(c.saAssuranceTotal / div)}` : ""} · Maintenance : ${eur(c.saMaintTotal / div)}</small></div>
       <div class="tot"><span>Solution proposée</span><b>${eur(c.spTotal / div)} <small class="unit">${perShort(STATE)}</small></b>
         <small class="tot-detail">Loyer : ${eur(c.spLoyerTotal / div)} · Maintenance : ${eur(c.spMaintTotal / div)}</small></div>
       <div class="tot big ${eco >= 0 ? "pos" : "neg"}"><span>${eco >= 0 ? "Économie" : "Surcoût"} annuel</span>

@@ -145,7 +145,11 @@ function computeMachine(m, state) {
   const saServ = services.reduce((a, s) => a + s.sa, 0);
   const spServ = services.reduce((a, s) => a + s.sp, 0);
 
-  const saTotal = num(m.loyerActuel) + saMaintNB + saMaintCoul + saServ;
+  // assurance / autre frais périodique payé en plus du loyer par le client
+  // actuel : compté dans le total de la situation actuelle, mais jamais
+  // dans le rachat (rachatMachine ne se base que sur loyerActuel).
+  const saAssurance = num(m.assuranceActuelle);
+  const saTotal = num(m.loyerActuel) + saAssurance + saMaintNB + saMaintCoul + saServ;
   const spTotal = spLoyer + spMaintNB + spMaintCoul + spServ;
 
   return {
@@ -156,7 +160,7 @@ function computeMachine(m, state) {
     billedNB, billedCoul, services,
     sa: {
       model: m.currentModel || "Machine actuelle", fin: "Location",
-      loyer: num(m.loyerActuel), volNB: billedNB, volCoul: billedCoul,
+      loyer: num(m.loyerActuel), assurance: saAssurance, volNB: billedNB, volCoul: billedCoul,
       ccNB: num(m.ccNBactuel), ccCoul: num(m.ccCoulActuel),
       maintNB: saMaintNB, maintCoul: saMaintCoul, servTotal: saServ, total: saTotal,
     },
@@ -175,6 +179,7 @@ function computeAll(state) {
   const saTotal = sum("sa", "total"), spTotal = sum("sp", "total");
   const savingQuarter = saTotal - spTotal;
   const saLoyerTotal = sum("sa", "loyer");
+  const saAssuranceTotal = sum("sa", "assurance");
   const spLoyerTotal = sum("sp", "loyer");
   // coût total de la maintenance (actuelle / proposée) : coûts page + abonnements (hors loyer)
   const saMaintTotal = sum("sa", "maintNB") + sum("sa", "maintCoul") + sum("sa", "servTotal");
@@ -183,7 +188,7 @@ function computeAll(state) {
     rows, saTotal, spTotal,
     savingQuarter, savingYear: savingQuarter * 4,
     savingPct: saTotal ? (savingQuarter / saTotal) * 100 : 0,
-    saLoyerTotal, saMaintTotal, spLoyerTotal, spMaintTotal,
+    saLoyerTotal, saAssuranceTotal, saMaintTotal, spLoyerTotal, spMaintTotal,
     rachatTotal: rows.reduce((a, r) => a + r.rachat, 0),
     durationTrim: state.durationTrim,
     divisor: state.periodicite === "M" ? 3 : 1,

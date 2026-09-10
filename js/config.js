@@ -102,6 +102,7 @@ function defaultMachine() {
     currentModel: "",
     prospect: false,        // false = client Levad, true = prospect (concurrent)
     loyerActuel: 0,         // loyer trimestriel actuel (€)
+    assuranceActuelle: 0,   // assurance / autre frais périodique en plus du loyer (€) — exclu du rachat
     trimRestants: 0,        // trimestres restants sur le contrat actuel
     forfaitNB: 0, depassNB: 0, volNBreel: 0, ccNBactuel: 0,
     forfaitCoul: 0, depassCoul: 0, volCoulReel: 0, ccCoulActuel: 0,

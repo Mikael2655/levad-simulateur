@@ -15,6 +15,7 @@ function lineFor(side, div) {
   // volumes de pages avec des décimales).
   const out = [];
   out.push(["Location — " + side.model, 1, side.loyer / div, side.loyer / div]);
+  if (side.assurance) out.push(["Assurance / autre", 1, side.assurance / div, side.assurance / div]);
   if (side.volNB || side.maintNB) out.push(["Impressions N/B", Math.round(side.volNB / div), side.ccNB, side.maintNB / div]);
   if (side.volCoul || side.maintCoul) out.push(["Impressions couleurs", Math.round(side.volCoul / div), side.ccCoul, side.maintCoul / div]);
   return out;
