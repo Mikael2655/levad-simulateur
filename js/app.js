@@ -530,7 +530,7 @@ function renderSaved() {
     const owner = s.userId === CURRENT_USER.id;
     const who = ADMIN ? `<b>${esc(s.userName || "—")}</b> · ` : "";
     return `<div class="sim-row${s.archived ? " arch" : ""}">
-      <span class="sim-name">${who}${esc(s.clientName || s.name || "Sans nom")}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
+      <span class="sim-name">${who}${esc(s.name || s.clientName || "Sans nom")}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
         <span class="muted small">${esc(s.savedAt || "")}${s.sold ? " · signé le " + esc(dateShort(s.soldAt)) +
           ((owner || ADMIN) ? ` <button class="btn tiny ghost" data-action="edit-sold-date" data-sim="${s.id}" title="Modifier la date de signature">✎</button>` : "") : ""}</span></span>
       <span class="sim-actions">
