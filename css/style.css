@@ -209,7 +209,6 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .cfg-price { flex: 0 0 auto; font-size: 13px; color: var(--muted); min-width: 80px; text-align: right; }
 .cfg-qty { flex: 0 0 64px; width: 64px; font-size: 13px; color: var(--ink); background: var(--card);
   border: 1px solid var(--line); border-radius: 7px; padding: 5px 6px; }
-.cfg-top-actions { display: flex; justify-content: flex-end; margin: -6px 0 12px; }
 .cfg-total { margin: 12px 0; font-size: 16px; text-align: right; }
 .cfg-total b { color: var(--brand); }
 .cfg-info-btn { flex: none; border: 1px solid var(--line); background: var(--card); color: var(--brand);
