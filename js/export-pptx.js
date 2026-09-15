@@ -13,16 +13,69 @@ const SP_EXT_CY = 2589373;
 const SP_OFF_Y = 6671125;
 const SP_TITLE_Y = 6167707;
 
-/* Emplacement réservé au logo client sur la slide 1 (zone basse de
-   « ZoneTexte 4 », sous le nom du client) — coordonnées EMU. Hauteur cible
-   légèrement supérieure à celle du logo LEVAD de la même page (779564 EMU,
-   « Image 16 ») pour que le logo client ne paraisse pas plus petit ; la
-   largeur suit le ratio de l'image, plafonnée pour ne pas déborder sur le
-   reste de la page de garde. Centré horizontalement sur l'axe du nom du
-   client (centre de « ZoneTexte 4 » : x=495300, largeur=2667000). */
-const LOGO_CENTER_X = 1828800, LOGO_Y = 1357137;
+/* Bloc « nom du client + logo » sur la slide 1 (« ZoneTexte 4 ») —
+   coordonnées EMU. Largeur fixe (celle de la zone d'origine) ; hauteur du
+   logo cible légèrement supérieure à celle du logo LEVAD de la même page
+   (779564 EMU, « Image 16 ») pour qu'il ne paraisse pas plus petit, largeur
+   plafonnée pour ne pas déborder. Le nom et le logo sont centrés ensemble
+   sur le même axe vertical que la mise en page d'origine (centre du bloc
+   nom 1-2 lignes + logo tel que conçu initialement). */
+const NAME_BOX_X = 495300, NAME_BOX_W = 2667000;
+const LOGO_CENTER_X = NAME_BOX_X + NAME_BOX_W / 2; // 1828800
+const GROUP_CENTER_Y = 1507137;
 const LOGO_TARGET_H = 800000;
 const LOGO_MAX_W = 3600000;
+const NAME_MAX_PT = 32, NAME_MIN_PT = 14, NAME_MAX_LINES = 2;
+const NAME_LINE_HEIGHT_FACTOR = 1.2;
+const NAME_LOGO_GAP = 60000;
+const EMU_PER_PT = 12700;
+
+/* Contexte canvas 2D pour mesurer le texte (largeur réelle selon la police) ;
+   null si indisponible (ex. environnement de test sans support canvas) —
+   un repli par estimation de largeur de caractère est alors utilisé. */
+function get2dContext() {
+  try {
+    const c = document.createElement("canvas");
+    return c.getContext && c.getContext("2d");
+  } catch (e) { return null; }
+}
+function emuToPx(emu) { return (emu / EMU_PER_PT) * (96 / 72); }
+function textWidthPx(ctx2d, text, fontSizePt) {
+  if (ctx2d) {
+    ctx2d.font = `bold ${Math.round(fontSizePt * (96 / 72))}px Arial, sans-serif`;
+    return ctx2d.measureText(text).width;
+  }
+  // repli sans canvas : largeur moyenne approximative d'un caractère en gras
+  return text.length * fontSizePt * (96 / 72) * 0.55;
+}
+/* Retour à la ligne (mot par mot) pour tenir dans `maxWidthPx`. */
+function wrapTextLines(ctx2d, text, fontSizePt, maxWidthPx) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  if (!words.length) return [""];
+  const lines = [];
+  let cur = "";
+  for (const w of words) {
+    const test = cur ? cur + " " + w : w;
+    if (!cur || textWidthPx(ctx2d, test, fontSizePt) <= maxWidthPx) cur = test;
+    else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+/* Cherche la plus grande taille de police (entre NAME_MAX_PT et NAME_MIN_PT)
+   qui tient dans NAME_MAX_LINES lignes ; à défaut, garde la taille minimale
+   (avec autant de lignes que nécessaire) plutôt que de tronquer. */
+function fitClientName(name, boxWidthEMU) {
+  const ctx2d = get2dContext();
+  const boxWidthPx = emuToPx(boxWidthEMU);
+  let last = { pt: NAME_MIN_PT, lines: wrapTextLines(ctx2d, name, NAME_MIN_PT, boxWidthPx) };
+  for (let pt = NAME_MAX_PT; pt >= NAME_MIN_PT; pt--) {
+    const lines = wrapTextLines(ctx2d, name, pt, boxWidthPx);
+    last = { pt, lines };
+    if (lines.length <= NAME_MAX_LINES) return last;
+  }
+  return last;
+}
 
 function xmlEsc(v) {
   return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -133,46 +186,89 @@ function imageNaturalSize(dataUrl) {
   });
 }
 
-/* Insère le logo du client (data URL) sur la slide 1, dans la zone réservée
-   sous le nom du client — ajout de l'image aux médias, de la relation, et
-   du <p:pic> dans le XML de la slide. Ne fait rien si aucun logo fourni. */
-async function insertClientLogo(zip, dataUrl) {
-  if (!dataUrl) return;
-  const m = /^data:image\/(png|jpe?g);base64,(.*)$/i.exec(dataUrl);
-  if (!m) return;
-  const ext = m[1].toLowerCase() === "jpg" ? "jpeg" : m[1].toLowerCase();
-  const bin = atob(m[2]);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+/* Nom du client + logo sur la slide 1 (« ZoneTexte 4 ») : le nom est réduit
+   autant que nécessaire pour tenir sur 1-2 lignes dans la largeur de la
+   zone, et le logo (si fourni) est placé juste en dessous, redimensionné
+   comme avant. Les deux sont ensuite centrés ensemble sur GROUP_CENTER_Y,
+   qu'il y ait 1, 2 lignes de nom (ou plus, pour un nom extrêmement long).
+   Si le nom tient tel quel (taille pleine, ≤2 lignes) et qu'il n'y a pas de
+   logo, la zone d'origine du modèle n'est pas modifiée. */
+async function layoutClientNameAndLogo(zip, state) {
+  const name = state.client.name || "Client";
+  const dataUrl = state.client.logo;
+  const m = dataUrl && /^data:image\/(png|jpe?g);base64,(.*)$/i.exec(dataUrl);
+  const hasLogo = !!m;
 
-  let { w: nw, h: nh } = await imageNaturalSize(dataUrl);
-  if (!nw || !nh) { nw = 1; nh = 1; }
-  let scale = LOGO_TARGET_H / nh;
-  let cx = Math.round(nw * scale), cy = LOGO_TARGET_H;
-  if (cx > LOGO_MAX_W) { scale = LOGO_MAX_W / nw; cx = LOGO_MAX_W; cy = Math.round(nh * scale); }
-  const x = Math.round(LOGO_CENTER_X - cx / 2), y = LOGO_Y;
+  const fit = fitClientName(name, NAME_BOX_W);
+  const needsLayout = hasLogo || fit.pt < NAME_MAX_PT || fit.lines.length > NAME_MAX_LINES;
+  if (!needsLayout) return;
 
-  const mediaName = `clientlogo.${ext}`;
-  zip.file(`ppt/media/${mediaName}`, bytes);
+  let logoCx = 0, logoCy = 0, logoBytes = null, logoExt = "";
+  if (hasLogo) {
+    logoExt = m[1].toLowerCase() === "jpg" ? "jpeg" : m[1].toLowerCase();
+    const bin = atob(m[2]);
+    logoBytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) logoBytes[i] = bin.charCodeAt(i);
+    let { w: nw, h: nh } = await imageNaturalSize(dataUrl);
+    if (!nw || !nh) { nw = 1; nh = 1; }
+    let scale = LOGO_TARGET_H / nh;
+    logoCx = Math.round(nw * scale); logoCy = LOGO_TARGET_H;
+    if (logoCx > LOGO_MAX_W) { scale = LOGO_MAX_W / nw; logoCx = LOGO_MAX_W; logoCy = Math.round(nh * scale); }
+  }
 
-  const relsPath = "ppt/slides/_rels/slide1.xml.rels";
-  let rels = await zip.file(relsPath).async("string");
-  const usedRids = [...rels.matchAll(/Id="rId(\d+)"/g)].map((mm) => parseInt(mm[1], 10));
-  const nextRid = "rId" + (Math.max(0, ...usedRids) + 1);
-  rels = rels.replace(
-    "</Relationships>",
-    `<Relationship Id="${nextRid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${mediaName}"/></Relationships>`
-  );
-  zip.file(relsPath, rels);
+  const lineHeightEMU = Math.round(fit.pt * NAME_LINE_HEIGHT_FACTOR * EMU_PER_PT);
+  const nameHeight = fit.lines.length * lineHeightEMU;
+  const gap = hasLogo ? NAME_LOGO_GAP : 0;
+  const total = nameHeight + gap + logoCy;
+  const top = Math.round(GROUP_CENTER_Y - total / 2);
+  const nameBoxY = top;
+  const logoY = top + nameHeight + gap;
 
   const slidePath = "ppt/slides/slide1.xml";
   let xml = await zip.file(slidePath).async("string");
-  const usedIds = [...xml.matchAll(/<p:cNvPr id="(\d+)"/g)].map((mm) => parseInt(mm[1], 10));
-  const nextId = Math.max(0, ...usedIds) + 1;
-  const pic = `<p:pic><p:nvPicPr><p:cNvPr id="${nextId}" name="Logo client"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>` +
-    `<p:blipFill><a:blip r:embed="${nextRid}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
-    `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
-  xml = xml.replace("</p:spTree>", pic + "</p:spTree>");
+
+  // remplace la zone de texte du nom (position/taille + un <a:p> par ligne)
+  const nameIdx = xml.indexOf('name="ZoneTexte 4"');
+  const spStart = xml.lastIndexOf("<p:sp>", nameIdx);
+  const spEnd = xml.indexOf("</p:sp>", nameIdx) + "</p:sp>".length;
+  const oldSp = xml.slice(spStart, spEnd);
+  const newParas = fit.lines.map((line) =>
+    `<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="fr-FR" sz="${Math.round(fit.pt * 100)}" b="1" dirty="0"/><a:t>${xmlEsc(line)}</a:t></a:r></a:p>`
+  ).join("");
+  let newSp = oldSp.replace(
+    /<a:xfrm><a:off x="495300" y="\d+"\/><a:ext cx="2667000" cy="\d+"\/><\/a:xfrm>/,
+    `<a:xfrm><a:off x="${NAME_BOX_X}" y="${nameBoxY}"/><a:ext cx="${NAME_BOX_W}" cy="${nameHeight}"/></a:xfrm>`
+  );
+  newSp = newSp.replace(/<p:txBody>[\s\S]*<\/p:txBody>/, (whole) => {
+    const bodyPrMatch = /^<p:txBody><a:bodyPr[^>]*>(?:<a:spAutoFit\/>)?<\/a:bodyPr>/.exec(whole);
+    const bodyPr = bodyPrMatch ? bodyPrMatch[0] : "<p:txBody><a:bodyPr wrap=\"square\" rtlCol=\"0\"><a:spAutoFit/></a:bodyPr>";
+    return `${bodyPr}<a:lstStyle/>${newParas}</p:txBody>`;
+  });
+  xml = xml.slice(0, spStart) + newSp + xml.slice(spEnd);
+
+  if (hasLogo) {
+    const x = Math.round(LOGO_CENTER_X - logoCx / 2), y = logoY;
+    const mediaName = `clientlogo.${logoExt}`;
+    zip.file(`ppt/media/${mediaName}`, logoBytes);
+
+    const relsPath = "ppt/slides/_rels/slide1.xml.rels";
+    let rels = await zip.file(relsPath).async("string");
+    const usedRids = [...rels.matchAll(/Id="rId(\d+)"/g)].map((mm) => parseInt(mm[1], 10));
+    const nextRid = "rId" + (Math.max(0, ...usedRids) + 1);
+    rels = rels.replace(
+      "</Relationships>",
+      `<Relationship Id="${nextRid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${mediaName}"/></Relationships>`
+    );
+    zip.file(relsPath, rels);
+
+    const usedIds = [...xml.matchAll(/<p:cNvPr id="(\d+)"/g)].map((mm) => parseInt(mm[1], 10));
+    const nextId = Math.max(0, ...usedIds) + 1;
+    const pic = `<p:pic><p:nvPicPr><p:cNvPr id="${nextId}" name="Logo client"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>` +
+      `<p:blipFill><a:blip r:embed="${nextRid}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
+      `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${logoCx}" cy="${logoCy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+    xml = xml.replace("</p:spTree>", pic + "</p:spTree>");
+  }
+
   zip.file(slidePath, xml);
 }
 
@@ -184,7 +280,7 @@ async function exportPptx(state, calc) {
   const s25path = "ppt/slides/slide25.xml";
   zip.file(s25path, buildSlide25(await zip.file(s25path).async("string"), calc));
 
-  await insertClientLogo(zip, state.client.logo);
+  await layoutClientNameAndLogo(zip, state);
 
   const scal = scalarTokens(state, calc);
   const slides = Object.keys(zip.files).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p));
