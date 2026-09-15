@@ -530,7 +530,7 @@ function renderSaved() {
     const owner = s.userId === CURRENT_USER.id;
     const who = ADMIN ? `<b>${esc(s.userName || "—")}</b> · ` : "";
     return `<div class="sim-row${s.archived ? " arch" : ""}">
-      <span class="sim-name">${who}${esc(s.name || s.clientName || "Sans nom")}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
+      <span class="sim-name">${who}${esc(s.name || s.clientName || "Sans nom")}${(owner || ADMIN) ? ` <button class="btn tiny ghost" data-action="rename-sim" data-sim="${s.id}" title="Renommer">✎</button>` : ""}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
         <span class="muted small">${esc(s.savedAt || "")}${s.sold ? " · signé le " + esc(dateShort(s.soldAt)) +
           ((owner || ADMIN) ? ` <button class="btn tiny ghost" data-action="edit-sold-date" data-sim="${s.id}" title="Modifier la date de signature">✎</button>` : "") : ""}</span></span>
       <span class="sim-actions">
@@ -1218,6 +1218,14 @@ document.addEventListener("click", async (e) => {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
       if (!ADMIN && s.userId !== CURRENT_USER.id) break;
       s.archived = (a === "arch-sim"); await Store.putSim(s); renderSaved();
+      break;
+    }
+    case "rename-sim": {
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
+      const name = prompt("Nouveau nom de la simulation :", s.name || s.clientName || ""); if (!name) break;
+      s.name = name; await Store.putSim(s); renderSaved();
+      flash("Simulation renommée.");
       break;
     }
     case "open-manual-sale": MANUAL_SALE_OPEN = true; MANUAL_SALE_EDIT_ID = ""; renderMargins(); break;
