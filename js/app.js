@@ -506,6 +506,13 @@ function parseSavedAt(str) {
   const [, d, mo, y, h, mi, se] = m;
   return new Date(+y, +mo - 1, +d, +(h || 0), +(mi || 0), +(se || 0)).getTime();
 }
+/* Date de création affichée (jj/mm/aaaa, sans heure) : "createdAt" (ISO) sur
+   les simulations créées depuis cette fonctionnalité, sinon repli sur la
+   partie date de "savedAt" (déjà au format jj/mm/aaaa) pour les anciennes. */
+function creationDateDisplay(s) {
+  if (s.createdAt) return dateShort(s.createdAt);
+  return (s.savedAt || "").split(" ")[0];
+}
 
 function renderSaved() {
   const box = document.getElementById("saved-list"); if (!box) return;
@@ -526,9 +533,9 @@ function renderSaved() {
   box.innerHTML = list.map((s) => {
     const owner = s.userId === CURRENT_USER.id;
     const who = ADMIN ? `<b>${esc(s.userName || "—")}</b> · ` : "";
-    return `<div class="sim-row${s.archived ? " arch" : ""}">
+    return `<div class="sim-row${s.archived ? " arch" : ""}" title="Dernière mise à jour : ${esc(s.savedAt || "")}">
       <span class="sim-name">${who}${esc(s.name || s.clientName || "Sans nom")}${(owner || ADMIN) ? ` <button class="btn tiny ghost" data-action="rename-sim" data-sim="${s.id}" title="Renommer">✎</button>` : ""}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
-        <span class="muted small">${esc(s.savedAt || "")}${s.sold ? " · signé le " + esc(dateShort(s.soldAt)) +
+        <span class="muted small">${esc(creationDateDisplay(s))}${s.sold ? " · signé le " + esc(dateShort(s.soldAt)) +
           ((owner || ADMIN) ? ` <button class="btn tiny ghost" data-action="edit-sold-date" data-sim="${s.id}" title="Modifier la date de signature">✎</button>` : "") : ""}</span></span>
       <span class="sim-actions">
         <button class="btn small" data-action="load-sim" data-sim="${s.id}">Charger</button>
@@ -1167,13 +1174,14 @@ document.addEventListener("click", async (e) => {
     case "save-sim": {
       const loaded = LOADED_SIM_ID ? loadSims().find((x) => x.id === LOADED_SIM_ID) : null;
       if (loaded && (ADMIN || loaded.userId === CURRENT_USER.id)) { openSaveModal(loaded); break; }
-      const def = ((STATE.client.name || "Simulation") + " — " + dateShort(STATE.client.date || todayISO()));
+      const def = STATE.client.name || "Simulation";
       const name = prompt("Nom de la simulation :", def); if (!name) break;
       const existing = loadSims().find((x) => x.userId === CURRENT_USER.id && x.name === name);
       const snap = {
         id: existing ? existing.id : cryptoId(),
         userId: CURRENT_USER.id, userName: CURRENT_USER.name,
         name, clientName: STATE.client.name || "", savedAt: new Date().toLocaleString("fr-FR"),
+        createdAt: existing ? existing.createdAt : todayISO(),
         archived: existing ? !!existing.archived : false,
         state: JSON.parse(JSON.stringify(STATE)),
       };
@@ -1198,6 +1206,7 @@ document.addEventListener("click", async (e) => {
       const snap = {
         id: cryptoId(), userId: loaded.userId, userName: loaded.userName,
         name: nextName, clientName: STATE.client.name || "", savedAt: new Date().toLocaleString("fr-FR"),
+        createdAt: todayISO(),
         archived: false, state: JSON.parse(JSON.stringify(STATE)),
       };
       await Store.putSim(snap); LOADED_SIM_ID = snap.id; renderSaved(); flash(`Nouvelle version enregistrée (${nextName}).`);
