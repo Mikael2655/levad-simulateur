@@ -9,6 +9,26 @@
 const GREEN = "FF8C9D8D";
 const GREEN_LT = "FFE9F0E9";
 
+/* ExcelJS ne sait pas écrire usePrinterDefaults="0" dans <pageSetup> (son
+   sérialiseur ne produit que "1" ou rien du tout — bug connu de la lib).
+   Sans cet attribut explicitement à 0, Excel ignore le format de papier
+   du fichier (paperSize=9, A4) et reprend celui de l'imprimante par
+   défaut du poste (souvent Letter), d'où le format Letter et l'erreur
+   d'impression : on corrige donc le XML généré après coup. */
+async function forceA4PageSetup(buf) {
+  const zip = await JSZip.loadAsync(buf);
+  const path = "xl/worksheets/sheet1.xml";
+  const file = zip.file(path);
+  if (!file) return buf;
+  let xml = await file.async("string");
+  if (xml.includes("<pageSetup ") && !xml.includes("usePrinterDefaults")) {
+    xml = xml.replace("<pageSetup ", '<pageSetup usePrinterDefaults="0" ');
+    zip.file(path, xml);
+    return zip.generateAsync({ type: "uint8array" });
+  }
+  return buf;
+}
+
 function lineFor(side, div) {
   // renvoie [ [désig, qté, pu, total] ... ] pour un côté (sa/sp)
   // qté arrondie à l'unité (la division par 3 en mensuel donne sinon des
@@ -31,9 +51,10 @@ async function exportExcel(state, calc) {
   const widths = [4.8, 4.7, 24, 12, 14, 14, 3, 24, 12, 14, 14, 4.7];
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w));
 
-  // impression : paysage A4, ajusté sur 1 page, marges réduites
+  // impression : paysage A4, ajusté sur 1 page, marges réduites.
   ws.pageSetup = {
-    orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 1,
+    orientation: "landscape", paperSize: 9,
+    fitToPage: true, fitToWidth: 1, fitToHeight: 1,
     horizontalCentered: true, verticalCentered: true,
     margins: { left: 0.2, right: 0.2, top: 0.2, bottom: 0.2, header: 0.1, footer: 0.1 },
   };
@@ -131,7 +152,7 @@ async function exportExcel(state, calc) {
   f.value = "LEVAD — 135 Chemin des Bassins 94000 Créteil — 01 70 72 19 40 — contact@levad.fr";
   f.font = { size: 10, italic: true }; f.alignment = center;
 
-  const buf = await wb.xlsx.writeBuffer();
+  const buf = await forceA4PageSetup(await wb.xlsx.writeBuffer());
   downloadBlob(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
     fileName(state, "xlsx", "SA-SP"));
 }
