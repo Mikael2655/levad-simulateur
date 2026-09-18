@@ -128,7 +128,10 @@ const DEFAULT_CFG_CATEGORY = "OFFICE - SYSTEMES D'IMPRESSION COULEUR";
 const DEFAULT_CFG_MACHINE = "imageFORCE C611";
 function configItemKey(section, designation) { return section + "||" + designation; }
 function configTotal() {
-  return Object.values(CONFIG_DRAFT.items).reduce((a, it) => a + it.price * it.qty, 0);
+  const sum = Object.values(CONFIG_DRAFT.items).reduce((a, it) => a + it.price * it.qty, 0);
+  // évite les artefacts d'arrondi flottant (ex. 2355,2000000000003) qui se
+  // retrouvaient dans le champ Prix machine une fois le total appliqué.
+  return Math.round(sum * 100) / 100;
 }
 function configMachine() {
   const machines = CATALOG && CATALOG[CONFIG_DRAFT.category];
@@ -859,16 +862,20 @@ function machineCard(m, i) {
             ${ADMIN ? `<div class="fld"><span>Coefficient leaser</span><div class="ro" id="coeff-${m.id}"></div></div>` : ""}
           </div>
         </div>
-        <div class="subgrid"><h4>Volumes proposés <small>(calcul auto · modifiables)</small></h4>
+        <div class="subgrid"><h4>N&B proposé <small>(volume : calcul auto · modifiable)</small></h4>
           <div class="grid">
             <label class="fld"><span>Volume N&B proposé (pages)</span>
               <input type="number" step="any" inputmode="decimal" data-scope="spvol" data-mid="${m.id}" data-key="spVolNB" id="spvol-nb-${m.id}" value="${esc(m.spVolNB)}"></label>
-            <label class="fld"><span>Volume couleur proposé (pages)</span>
-              <input type="number" step="any" inputmode="decimal" data-scope="spvol" data-mid="${m.id}" data-key="spVolCoul" id="spvol-coul-${m.id}" value="${esc(m.spVolCoul)}"></label>
+            ${mField(m.id, SP_CC[0])}
           </div>
         </div>
-        <div class="subgrid"><h4>Coûts page proposés</h4>
-          <div class="grid">${SP_CC.map((f) => mField(m.id, f)).join("")}</div></div>
+        <div class="subgrid"><h4>Couleur proposé <small>(volume : calcul auto · modifiable)</small></h4>
+          <div class="grid">
+            <label class="fld"><span>Volume couleur proposé (pages)</span>
+              <input type="number" step="any" inputmode="decimal" data-scope="spvol" data-mid="${m.id}" data-key="spVolCoul" id="spvol-coul-${m.id}" value="${esc(m.spVolCoul)}"></label>
+            ${mField(m.id, SP_CC[1])}
+          </div>
+        </div>
         <div class="subgrid"><h4>Service &amp; abonnements <small>(proposé)</small></h4>
           ${svcRowsSide(m, "sp")}
         </div>
