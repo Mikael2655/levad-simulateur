@@ -862,14 +862,14 @@ function machineCard(m, i) {
             ${ADMIN ? `<div class="fld"><span>Coefficient leaser</span><div class="ro" id="coeff-${m.id}"></div></div>` : ""}
           </div>
         </div>
-        <div class="subgrid"><h4>N&B proposé <small>(volume : calcul auto · modifiable)</small></h4>
+        <div class="subgrid"><h4>N&B proposé</h4>
           <div class="grid">
             <label class="fld"><span>Volume N&B proposé (pages)</span>
               <input type="number" step="any" inputmode="decimal" data-scope="spvol" data-mid="${m.id}" data-key="spVolNB" id="spvol-nb-${m.id}" value="${esc(m.spVolNB)}"></label>
             ${mField(m.id, SP_CC[0])}
           </div>
         </div>
-        <div class="subgrid"><h4>Couleur proposé <small>(volume : calcul auto · modifiable)</small></h4>
+        <div class="subgrid"><h4>Couleur proposé</h4>
           <div class="grid">
             <label class="fld"><span>Volume couleur proposé (pages)</span>
               <input type="number" step="any" inputmode="decimal" data-scope="spvol" data-mid="${m.id}" data-key="spVolCoul" id="spvol-coul-${m.id}" value="${esc(m.spVolCoul)}"></label>
