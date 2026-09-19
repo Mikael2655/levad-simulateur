@@ -9,6 +9,7 @@ let ADMIN = false;
 let SHOW_ARCHIVED = false;
 let SAVED_USER_FILTER = ""; // admin : userId sélectionné pour la liste des simulations enregistrées, "" = tous
 let SAVED_SORT = "date";      // tri de la liste des simulations enregistrées : "date" ou "client"
+let SAVED_STATUS_FILTER = ""; // "" = tous, "pending" = propositions en cours, "sold" = dossiers signés
 let COEFF_UNLOCKED = false;   // barème masqué tant que non déverrouillé
 let CATALOG = null;           // catalogue Canon (assets/catalog.json), chargé à la demande
 let CONFIG_MID = null;        // machine en cours d'édition dans le configurateur
@@ -417,6 +418,12 @@ function renderApp() {
             <option value="date" ${SAVED_SORT === "date" ? "selected" : ""}>Date (plus récent d'abord)</option>
             <option value="client" ${SAVED_SORT === "client" ? "selected" : ""}>Nom du client (A→Z)</option>
           </select></label>
+        <label class="fld"><span>Statut</span>
+          <select id="saved-status-select">
+            <option value="" ${SAVED_STATUS_FILTER === "" ? "selected" : ""}>Tous</option>
+            <option value="pending" ${SAVED_STATUS_FILTER === "pending" ? "selected" : ""}>Propositions en cours</option>
+            <option value="sold" ${SAVED_STATUS_FILTER === "sold" ? "selected" : ""}>Dossiers signés</option>
+          </select></label>
       </div>
       <div id="saved-list" class="saved"></div>
     </section>
@@ -523,6 +530,8 @@ function renderSaved() {
   if (!ADMIN) list = list.filter((s) => s.userId === CURRENT_USER.id);
   else if (SAVED_USER_FILTER) list = list.filter((s) => s.userId === SAVED_USER_FILTER);
   if (!SHOW_ARCHIVED) list = list.filter((s) => !s.archived);
+  if (SAVED_STATUS_FILTER === "pending") list = list.filter((s) => !s.sold);
+  else if (SAVED_STATUS_FILTER === "sold") list = list.filter((s) => !!s.sold);
   if (SAVED_SORT === "client") {
     list.sort((a, b) => (a.clientName || a.name || "").localeCompare(b.clientName || b.name || "") ||
       parseSavedAt(b.savedAt) - parseSavedAt(a.savedAt));
@@ -1017,6 +1026,11 @@ document.addEventListener("change", (e) => {
   }
   if (t.id === "saved-sort-select") {
     SAVED_SORT = t.value;
+    renderSaved();
+    return;
+  }
+  if (t.id === "saved-status-select") {
+    SAVED_STATUS_FILTER = t.value;
     renderSaved();
     return;
   }
