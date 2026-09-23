@@ -261,8 +261,8 @@ function renderConfigBody() {
     <div class="subgrid"><h4>Accessoires</h4>
       <div class="cfg-list">${mach.accessories.map((it) => configItemRow("accessories", it)).join("") || '<span class="muted small">Aucun article.</span>'}</div>
     </div>` : '<p class="muted small">Aucune machine dans cette gamme.</p>'}
-    <div class="cfg-total">Total sélection : <b id="cfg-total-val">${eur(configTotal())}</b></div>
     <div class="actions">
+      <span class="cfg-total-sticky">Total sélection : <b id="cfg-total-val">${eur(configTotal())}</b></span>
       <button class="btn primary" data-action="apply-config">Valider → Prix machine</button>
       <button class="btn ghost" data-action="close-config">Annuler</button>
     </div>`;
