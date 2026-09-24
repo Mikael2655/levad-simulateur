@@ -42,6 +42,11 @@ async function boot() {
   if (CURRENT_USER) {
     ADMIN = !!CURRENT_USER.isAdmin;
     STATE = loadDraftFor(CURRENT_USER);
+    // Par défaut à l'ouverture/au rafraîchissement : l'utilisateur connecté
+    // (pertinent pour l'admin, qui peut sinon voir tout le monde) et le
+    // statut "Propositions en cours".
+    SAVED_USER_FILTER = CURRENT_USER.id;
+    SAVED_STATUS_FILTER = "pending";
     renderApp();
   } else {
     renderLogin();
@@ -393,6 +398,9 @@ function topField(scope, k, label, type, extra) {
 /* -------------------- Rendu principal -------------------- */
 function renderApp() {
   const s = STATE;
+  // Dossier signé chargé, vu par un non-admin : consultation seule (voir lockEditArea()).
+  const loadedSim = LOADED_SIM_ID ? loadSims().find((x) => x.id === LOADED_SIM_ID) : null;
+  const readOnly = !!(loadedSim && loadedSim.sold && !ADMIN);
   document.getElementById("screen").innerHTML = `
     <section class="card saved-card">
       <div class="card-head"><h2>Simulations enregistrées
@@ -401,7 +409,7 @@ function renderApp() {
           ${(FIREBASE_READY && Store.mode !== "firebase") ? `<button class="btn ghost small" data-action="retry-firebase">↻ Reconnecter</button>` : ""}
           <button class="btn ghost small" data-action="toggle-arch">${SHOW_ARCHIVED ? "Masquer les archives" : "Voir les archives"}</button>
           <button class="btn ghost small" data-action="new-sim">＋ Nouvelle</button>
-          <button class="btn" data-action="save-sim">💾 Enregistrer</button>
+          <button class="btn" data-action="save-sim" ${readOnly ? "disabled" : ""}>💾 Enregistrer</button>
         </div>
       </div>
       ${(FIREBASE_READY && Store.mode !== "firebase")
@@ -427,6 +435,8 @@ function renderApp() {
       </div>
       <div id="saved-list" class="saved"></div>
     </section>
+    <div id="edit-area">
+    ${readOnly ? `<section class="card locked-banner">🔒 Dossier signé — lecture seule. Seul l'administrateur peut modifier le contenu, l'archiver ou le repasser en proposition en cours.</section>` : ""}
     <section class="card">
       <h2>Client</h2>
       <div class="grid">
@@ -528,10 +538,25 @@ function renderApp() {
       <button class="btn primary" data-action="export-pdf">⬇︎ PDF Descriptif</button>
       <button class="btn ghost" data-action="reset">Réinitialiser</button>
       <span id="status" class="status"></span>
-    </section>`}`;
+    </section>`}
+    </div>`;
   if (s.simMode === "telephonie") { renderTelephonie(); } else { renderMachines(); renderResults(); }
   renderAdmin(); renderSaved();
   if (ADMIN) renderUsers();
+  if (readOnly) lockEditArea();
+}
+
+/* Verrouille en lecture seule le formulaire d'un dossier signé consulté par
+   un non-admin : désactive tous les champs et actions (contenu, ajout/
+   suppression de machine, configurateur…), à l'exception des exports
+   (consultation) et de « Réinitialiser » (sort simplement de la consultation). */
+function lockEditArea() {
+  const area = document.getElementById("edit-area"); if (!area) return;
+  area.querySelectorAll("input, select, textarea, button").forEach((el) => {
+    if (el.dataset.action === "export-xlsx" || el.dataset.action === "export-pptx" ||
+        el.dataset.action === "export-pdf" || el.dataset.action === "reset") return;
+    el.disabled = true;
+  });
 }
 
 /* "savedAt" est au format jj/mm/aaaa hh:mm:ss (toLocaleString("fr-FR")) :
@@ -570,21 +595,22 @@ function renderSaved() {
   }
   box.innerHTML = list.map((s) => {
     const owner = s.userId === CURRENT_USER.id;
+    // Dossier signé : consultable par son propriétaire, mais plus modifiable
+    // (contenu, statut, archivage) que par l'administrateur.
+    const canModify = ADMIN || (owner && !s.sold);
     const who = ADMIN ? `<b>${esc(s.userName || "—")}</b> · ` : "";
     return `<div class="sim-row${s.archived ? " arch" : ""}" title="Dernière mise à jour : ${esc(s.savedAt || "")}">
-      <span class="sim-name">${who}${esc(s.name || s.clientName || "Sans nom")}${(owner || ADMIN) ? ` <button class="btn tiny ghost" data-action="rename-sim" data-sim="${s.id}" title="Renommer">✎</button>` : ""}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
+      <span class="sim-name">${who}${esc(s.name || s.clientName || "Sans nom")}${canModify ? ` <button class="btn tiny ghost" data-action="rename-sim" data-sim="${s.id}" title="Renommer">✎</button>` : ""}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
         <span class="muted small">${esc(creationDateDisplay(s))}${s.sold ? " · signé le " + esc(dateShort(s.soldAt)) +
-          ((owner || ADMIN) ? ` <button class="btn tiny ghost" data-action="edit-sold-date" data-sim="${s.id}" title="Modifier la date de signature">✎</button>` : "") : ""}</span></span>
+          (ADMIN ? ` <button class="btn tiny ghost" data-action="edit-sold-date" data-sim="${s.id}" title="Modifier la date de signature">✎</button>` : "") : ""}</span></span>
       <span class="sim-actions">
         <button class="btn small" data-action="load-sim" data-sim="${s.id}">Charger</button>
-        ${(owner || ADMIN)
-          ? (s.sold
-            ? `<button class="btn small ghost" data-action="unsell-sim" data-sim="${s.id}">↺ Repasser en proposition</button>`
-            : `<button class="btn small" data-action="sell-sim" data-sim="${s.id}">✔ Dossier signé</button>`)
-          : ""}
+        ${s.sold
+          ? (ADMIN ? `<button class="btn small ghost" data-action="unsell-sim" data-sim="${s.id}">↺ Repasser en proposition</button>` : "")
+          : ((owner || ADMIN) ? `<button class="btn small" data-action="sell-sim" data-sim="${s.id}">✔ Dossier signé</button>` : "")}
         ${s.archived
-          ? ((owner || ADMIN) ? `<button class="btn small ghost" data-action="unarch-sim" data-sim="${s.id}">Désarchiver</button>` : "")
-          : ((owner || ADMIN) ? `<button class="btn small ghost" data-action="arch-sim" data-sim="${s.id}">Archiver</button>` : "")}
+          ? (canModify ? `<button class="btn small ghost" data-action="unarch-sim" data-sim="${s.id}">Désarchiver</button>` : "")
+          : (canModify ? `<button class="btn small ghost" data-action="arch-sim" data-sim="${s.id}">Archiver</button>` : "")}
         ${ADMIN ? `<button class="btn small danger" data-action="del-sim" data-sim="${s.id}">Supprimer</button>` : ""}
       </span>
     </div>`;
@@ -1237,6 +1263,7 @@ document.addEventListener("click", async (e) => {
     case "toggle-arch": SHOW_ARCHIVED = !SHOW_ARCHIVED; renderApp(); break;
     case "save-sim": {
       const loaded = LOADED_SIM_ID ? loadSims().find((x) => x.id === LOADED_SIM_ID) : null;
+      if (loaded && loaded.sold && !ADMIN) { flash("Dossier signé : lecture seule, contactez l'administrateur.", true); break; }
       if (loaded && (ADMIN || loaded.userId === CURRENT_USER.id)) { openSaveModal(loaded); break; }
       const def = STATE.client.name || "Simulation";
       const name = prompt("Nom de la simulation :", def); if (!name) break;
@@ -1286,13 +1313,13 @@ document.addEventListener("click", async (e) => {
     }
     case "arch-sim": case "unarch-sim": {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
-      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
+      if (!ADMIN && (s.userId !== CURRENT_USER.id || s.sold)) break; // dossier signé : réservé à l'admin
       s.archived = (a === "arch-sim"); await Store.putSim(s); renderSaved();
       break;
     }
     case "rename-sim": {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
-      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
+      if (!ADMIN && (s.userId !== CURRENT_USER.id || s.sold)) break; // dossier signé : réservé à l'admin
       const name = prompt("Nouveau nom de la simulation :", s.name || s.clientName || ""); if (!name) break;
       s.name = name; await Store.putSim(s); renderSaved();
       flash("Simulation renommée.");
@@ -1335,16 +1362,23 @@ document.addEventListener("click", async (e) => {
       renderMargins();
       break;
     }
-    case "sell-sim": case "edit-sold-date": {
+    case "sell-sim": {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
       if (!ADMIN && s.userId !== CURRENT_USER.id) break;
       const defaultDate = s.soldAt || (s.state && s.state.client && s.state.client.date) || todayISO();
       openDateModal(s.id, defaultDate, s.signedPeriodicite);
       break;
     }
+    case "edit-sold-date": {
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      if (!ADMIN) break; // dossier déjà signé : modification réservée à l'administrateur
+      const defaultDate = s.soldAt || (s.state && s.state.client && s.state.client.date) || todayISO();
+      openDateModal(s.id, defaultDate, s.signedPeriodicite);
+      break;
+    }
     case "unsell-sim": {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
-      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
+      if (!ADMIN) break; // dossier signé : repasser en proposition réservé à l'administrateur
       s.sold = false;
       await Store.putSim(s); renderSaved();
       flash("Repassée en proposition.");
@@ -1360,7 +1394,7 @@ document.addEventListener("click", async (e) => {
       const iso = document.getElementById("date-modal-input").value;
       if (!iso) { alert("Merci de choisir une date."); break; }
       const s = loadSims().find((x) => x.id === DATE_MODAL_SIM);
-      if (s && (ADMIN || s.userId === CURRENT_USER.id)) {
+      if (s && (ADMIN || (s.userId === CURRENT_USER.id && !s.sold))) {
         s.sold = true; s.soldAt = iso;
         s.signedPeriodicite = document.getElementById("date-modal-periodicite").value === "M" ? "M" : "T";
         await Store.putSim(s);

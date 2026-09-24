@@ -147,6 +147,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .mode-chip.on { background: var(--pos); color: #fff; }
 .mode-chip.off { background: var(--line); color: var(--muted); }
 .diag { margin: 10px 0 0; font-size: 12.5px; color: var(--neg); background: color-mix(in srgb, var(--neg) 8%, transparent); border: 1px solid var(--neg); border-radius: 8px; padding: 8px 10px; }
+.locked-banner { font-size: 13.5px; font-weight: 600; color: var(--neg); background: color-mix(in srgb, var(--neg) 10%, var(--card)); border: 1px solid var(--neg); text-align: center; }
 .machine-cols .col h3 { margin: 0 0 8px; font-size: 14px; color: var(--brand); }
 .fld.wide { grid-column: 1 / -1; }
 .subgrid { margin-top: 10px; }
