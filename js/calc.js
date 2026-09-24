@@ -1,10 +1,12 @@
 /* ============================================================
    Moteur de calcul SA / SP.
 
-   Tous les montants internes sont calculés au TRIMESTRE. La
-   périodicité (T/M) ne change que l'affichage (÷3 pour le mois),
-   sauf le loyer proposé dont le coefficient est majoré de 1,5 %
-   en paiement mensuel.
+   Tous les montants internes sont calculés au TRIMESTRE. Deux
+   périodicités indépendantes : celle du FINANCEMENT (state.periodicite)
+   détermine la majoration de 1,5 % du coefficient en paiement mensuel ;
+   celle de la PROPOSITION (state.periodiciteProposition) ne change que
+   l'affichage au client (÷3 pour un affichage mensuel), sans jamais
+   impacter le coefficient ni la majoration.
    ============================================================ */
 
 function num(v) {
@@ -191,17 +193,17 @@ function computeAll(state) {
     saLoyerTotal, saAssuranceTotal, saMaintTotal, spLoyerTotal, spMaintTotal,
     rachatTotal: rows.reduce((a, r) => a + r.rachat, 0),
     durationTrim: state.durationTrim,
-    divisor: state.periodicite === "M" ? 3 : 1,
+    divisor: state.periodiciteProposition === "M" ? 3 : 1,
   };
 }
 
-/* -------- Périodicité -------- */
-function perDivisor(state) { return state.periodicite === "M" ? 3 : 1; }
-function perUnit(state) { return state.periodicite === "M" ? "MOIS" : "TRIMESTRE"; }
-function perAdj(state) { return state.periodicite === "M" ? "mensuelle" : "trimestrielle"; }
-function perAdjCap(state) { return state.periodicite === "M" ? "Mensuelle" : "Trimestrielle"; }
-function perAdjMasc(state) { return state.periodicite === "M" ? "Mensuel" : "Trimestriel"; }
-function perShort(state) { return state.periodicite === "M" ? "/ mois" : "/ trim"; }
+/* -------- Périodicité de la proposition (affichage) -------- */
+function perDivisor(state) { return state.periodiciteProposition === "M" ? 3 : 1; }
+function perUnit(state) { return state.periodiciteProposition === "M" ? "MOIS" : "TRIMESTRE"; }
+function perAdj(state) { return state.periodiciteProposition === "M" ? "mensuelle" : "trimestrielle"; }
+function perAdjCap(state) { return state.periodiciteProposition === "M" ? "Mensuelle" : "Trimestrielle"; }
+function perAdjMasc(state) { return state.periodiciteProposition === "M" ? "Mensuel" : "Trimestriel"; }
+function perShort(state) { return state.periodiciteProposition === "M" ? "/ mois" : "/ trim"; }
 
 /* -------- Formatage à la française -------- */
 /* toLocaleString("fr-FR") sépare les milliers par une espace fine insécable

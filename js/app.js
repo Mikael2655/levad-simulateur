@@ -480,10 +480,15 @@ function renderApp() {
           <select data-scope="root" data-key="durationTrim">
             ${DURATIONS.map((d) => `<option value="${d.trim}" ${s.durationTrim == d.trim ? "selected" : ""}>${d.trim} trimestres (${d.mois} mois)</option>`).join("")}
           </select></label>
-        <label class="fld"><span>Périodicité</span>
+        <label class="fld"><span>Périodicité du financement</span>
           <select data-scope="root" data-key="periodicite">
             <option value="T" ${s.periodicite === "T" ? "selected" : ""}>Trimestrielle</option>
             <option value="M" ${s.periodicite === "M" ? "selected" : ""}>Mensuelle</option>
+          </select></label>
+        <label class="fld"><span>Périodicité de la proposition</span>
+          <select data-scope="root" data-key="periodiciteProposition">
+            <option value="T" ${s.periodiciteProposition === "T" ? "selected" : ""}>Trimestrielle</option>
+            <option value="M" ${s.periodiciteProposition === "M" ? "selected" : ""}>Mensuelle</option>
           </select></label>
       </div>
       <div id="admin-panel"></div>

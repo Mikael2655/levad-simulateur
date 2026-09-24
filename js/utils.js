@@ -25,8 +25,13 @@ function fileName(state, ext, label) {
 /* Fusion défensive d'un état chargé avec les valeurs par défaut (schéma évolutif). */
 function normalizeState(s) {
   const base = defaultState();
+  // Compat anciennes simulations : avant la séparation financement / proposition,
+  // une seule périodicité pilotait l'affichage. On la reprend telle quelle pour
+  // la proposition afin de ne pas changer l'affichage d'une simu déjà en cours.
+  const periodiciteProposition = s.periodiciteProposition || s.periodicite || base.periodiciteProposition;
   return {
     ...base, ...s,
+    periodiciteProposition,
     client: { ...base.client, ...(s.client || {}) },
     company: { ...base.company, ...(s.company || {}) },
     machines: Array.isArray(s.machines) && s.machines.length

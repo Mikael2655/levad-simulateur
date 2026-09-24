@@ -136,7 +136,8 @@ function defaultState() {
     company: { ...DEFAULT_COMPANY },
     leaser: "GRENKE",
     durationTrim: 21,       // trimestres
-    periodicite: "T",       // "T" = trimestre, "M" = mois
+    periodicite: "T",       // périodicité du financement ("T" = trimestre, "M" = mois) : détermine la majoration
+    periodiciteProposition: "T", // périodicité de présentation de la proposition ("T"/"M") : affichage uniquement
     coeffOverride: "",      // coefficient libre admin ("" = barème)
     machines: [defaultMachine()],
   };
