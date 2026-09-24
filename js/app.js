@@ -470,6 +470,17 @@ function renderApp() {
     </section>
 
     <section class="card">
+      <h2>Type de simulation</h2>
+      <div class="grid">
+        <label class="fld"><span>Simulateur</span>
+          <select data-scope="root" data-key="simMode">
+            <option value="impression" ${s.simMode !== "telephonie" ? "selected" : ""}>Impression</option>
+            <option value="telephonie" ${s.simMode === "telephonie" ? "selected" : ""}>Téléphonie</option>
+          </select></label>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>Financement</h2>
       <div class="grid">
         <label class="fld"><span>Leaser</span>
@@ -492,17 +503,6 @@ function renderApp() {
           </select></label>
       </div>
       <div id="admin-panel"></div>
-    </section>
-
-    <section class="card">
-      <h2>Type de simulation</h2>
-      <div class="grid">
-        <label class="fld"><span>Simulateur</span>
-          <select data-scope="root" data-key="simMode">
-            <option value="impression" ${s.simMode !== "telephonie" ? "selected" : ""}>Impression</option>
-            <option value="telephonie" ${s.simMode === "telephonie" ? "selected" : ""}>Téléphonie</option>
-          </select></label>
-      </div>
     </section>
 
     ${s.simMode === "telephonie" ? `
