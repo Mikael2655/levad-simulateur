@@ -41,6 +41,17 @@ function normalizeState(s) {
           return mm;
         })
       : base.machines,
+    telephonie: {
+      ...base.telephonie, ...(s.telephonie || {}),
+      centrex: { ...base.telephonie.centrex, ...((s.telephonie && s.telephonie.centrex) || {}) },
+      trunk: { ...base.telephonie.trunk, ...((s.telephonie && s.telephonie.trunk) || {}) },
+      connectivites: (s.telephonie && Array.isArray(s.telephonie.connectivites) && s.telephonie.connectivites.length)
+        ? s.telephonie.connectivites : base.telephonie.connectivites,
+      mobiles: (s.telephonie && Array.isArray(s.telephonie.mobiles) && s.telephonie.mobiles.length)
+        ? s.telephonie.mobiles : base.telephonie.mobiles,
+      materiels: (s.telephonie && Array.isArray(s.telephonie.materiels) && s.telephonie.materiels.length)
+        ? s.telephonie.materiels : base.telephonie.materiels,
+    },
   };
 }
 /* Brouillon de l'utilisateur courant (auto-sauvegarde). */

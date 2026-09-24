@@ -495,6 +495,29 @@ function renderApp() {
     </section>
 
     <section class="card">
+      <h2>Type de simulation</h2>
+      <div class="grid">
+        <label class="fld"><span>Simulateur</span>
+          <select data-scope="root" data-key="simMode">
+            <option value="impression" ${s.simMode !== "telephonie" ? "selected" : ""}>Impression</option>
+            <option value="telephonie" ${s.simMode === "telephonie" ? "selected" : ""}>Téléphonie</option>
+          </select></label>
+      </div>
+    </section>
+
+    ${s.simMode === "telephonie" ? `
+    <section class="card">
+      <h2>Téléphonie</h2>
+      <div id="telephonie"></div>
+    </section>
+
+    <section class="card results" id="tel-results"></section>
+
+    <section class="card actions">
+      <button class="btn ghost" data-action="reset">Réinitialiser</button>
+      <span id="status" class="status"></span>
+    </section>` : `
+    <section class="card">
       <div class="card-head"><h2>Machines</h2>
         <button class="btn" data-action="add-machine">＋ Ajouter une machine</button></div>
       <div id="machines"></div>
@@ -508,8 +531,9 @@ function renderApp() {
       <button class="btn primary" data-action="export-pdf">⬇︎ PDF Descriptif</button>
       <button class="btn ghost" data-action="reset">Réinitialiser</button>
       <span id="status" class="status"></span>
-    </section>`;
-  renderMachines(); renderAdmin(); renderResults(); renderSaved();
+    </section>`}`;
+  if (s.simMode === "telephonie") { renderTelephonie(); } else { renderMachines(); renderResults(); }
+  renderAdmin(); renderSaved();
   if (ADMIN) renderUsers();
 }
 
@@ -967,7 +991,7 @@ function renderResults() {
 }
 
 /* -------------------- Événements -------------------- */
-function commit() { saveState(STATE); renderResults(); }
+function commit() { saveState(STATE); if (STATE.simMode === "telephonie") renderTelResults(); else renderResults(); }
 
 document.addEventListener("input", (e) => {
   const t = e.target;
@@ -999,6 +1023,10 @@ document.addEventListener("input", (e) => {
     }
   } else if (scope === "spvol") {
     const m = mById(t.dataset.mid); if (m) m[t.dataset.key] = t.value; // "" = auto
+  } else if (scope === "telarr") {
+    const arr = STATE.telephonie[t.dataset.arr];
+    const item = arr && arr[+t.dataset.idx];
+    if (item) item[t.dataset.field] = val;
   } else if (scope === "root") {
     STATE[key] = (key === "durationTrim") ? parseInt(t.value, 10) : t.value;
   } else if (scope === "company") {
@@ -1110,11 +1138,21 @@ document.addEventListener("change", (e) => {
   if (t.dataset.scope === "root") {
     STATE[t.dataset.key] = t.dataset.key === "durationTrim" ? parseInt(t.value, 10) : t.value;
     saveState(STATE);
+    if (t.dataset.key === "simMode") { renderApp(); return; } // bascule Impression / Téléphonie : sections différentes
     if (t.dataset.key === "leaser") renderAdmin();
     renderMachines(); renderResults(); // périodicité/leaser : rafraîchit les libellés
   } else if (t.dataset.scope === "machine-sel") {
     const m = mById(t.dataset.mid); if (m) m[t.dataset.key] = t.value;
     saveState(STATE); renderMachines(); renderResults(); // bascule marge/loyer
+  } else if (t.dataset.scope === "telephonie") {
+    const val = t.dataset.key === "dureeAnnee" ? parseInt(t.value, 10) : t.value;
+    setPath(STATE, `telephonie.${t.dataset.key}`, val);
+    saveState(STATE); renderTelephonie(); // système (Centrex/Trunk) : rafraîchit les champs affichés
+  } else if (t.dataset.scope === "telarr") {
+    const arr = STATE.telephonie[t.dataset.arr];
+    const item = arr && arr[+t.dataset.idx];
+    if (item) item[t.dataset.field] = t.value;
+    saveState(STATE); renderTelResults();
   }
 });
 

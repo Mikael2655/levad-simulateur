@@ -140,6 +140,8 @@ function defaultState() {
     periodiciteProposition: "T", // périodicité de présentation de la proposition ("T"/"M") : affichage uniquement
     coeffOverride: "",      // coefficient libre admin ("" = barème)
     machines: [defaultMachine()],
+    simMode: "impression",  // "impression" (Canon) ou "telephonie"
+    telephonie: defaultTelephonie(),
   };
 }
 
