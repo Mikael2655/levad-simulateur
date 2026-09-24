@@ -1142,9 +1142,8 @@ document.addEventListener("change", (e) => {
     const m = mById(t.dataset.mid); if (m) m[t.dataset.key] = t.value;
     saveState(STATE); renderMachines(); renderResults(); // bascule marge/loyer
   } else if (t.dataset.scope === "telephonie") {
-    const val = t.dataset.key === "dureeAnnee" ? parseInt(t.value, 10) : t.value;
-    setPath(STATE, `telephonie.${t.dataset.key}`, val);
-    saveState(STATE); renderTelephonie(); // système (Centrex/Trunk) : rafraîchit les champs affichés
+    setPath(STATE, `telephonie.${t.dataset.key}`, t.value);
+    saveState(STATE); renderTelephonie(); // système (Centrex/Trunk) ou mode marge/loyer : rafraîchit les champs affichés
   } else if (t.dataset.scope === "telarr") {
     const arr = STATE.telephonie[t.dataset.arr];
     const item = arr && arr[+t.dataset.idx];

@@ -27,7 +27,6 @@ const TEL_MATERIEL_CATALOG = [
 ];
 const TEL_CONNECTIVITE_TYPES = ["FTTH 12 mois", "FTTH 24 mois", "FTTH 36 mois", "FTTO 12 mois", "FTTO 24 mois", "FTTO 36 mois"];
 const TEL_OPERATEURS = ["Alphalink", "Axione", "Bouygues", "Covage", "Eurofiber", "ielo", "IFT - Free", "Nexloop", "Orange", "Prizz Telecom", "SFR"];
-const TEL_DUREE_COEFF = { 3: 9.7, 4: 7.5, 5: 6.05 };
 const TEL_GTR_RATE = 43, TEL_SECOURS4G_RATE = 25, TEL_SECOURS5G_RATE = 40;
 const TEL_SDA_PRICE = 1, TEL_MNEMO_PRICE = 15, TEL_PORT_TRUNK_PRICE = 3, TEL_CARTE_SIM_PRICE = 2.5;
 
@@ -50,21 +49,23 @@ function defaultTelephonie() {
     mobiles: [defaultTelMobileLine(), defaultTelMobileLine(), defaultTelMobileLine(), defaultTelMobileLine()],
     carteSimQty: 0,
     materiels: [defaultTelMateriel(), defaultTelMateriel(), defaultTelMateriel(), defaultTelMateriel(),
-                defaultTelMateriel(), defaultTelMateriel(), defaultTelMateriel()],
+                defaultTelMateriel(), defaultTelMateriel(), defaultTelMateriel(), defaultTelMateriel()],
     bonsEnregistrement: 0,
     rachat: 0, cadeaux: 0, cadeauxLabel: "",
+    margeMode: "marge", // "marge" (on saisit la marge -> loyer calculé) | "loyer" (on saisit le loyer cible -> marge calculée)
     marge: 1500,
-    dureeAnnee: 5,
+    loyerCible: 0,
   };
 }
 
 /* Moteur de calcul, en miroir du fichier Excel fourni :
-   - Abonnements mensuels = système (Centrex OU Trunk) + Data/options + Mobile.
+   - Abonnements mensuels = système (Centrex OU Trunk) + Lien internet/options + Mobile.
    - FAS = frais d'accès au service, non récurrent (portage Trunk, FAS connectivité, cartes SIM).
    - Installation = frais de mise en service, non récurrent, selon le nombre d'utilisateurs/lignes.
-   - Matériel financé = matériel + bons d'enregistrement + installation + FAS + rachat + cadeaux + marge,
-     loué mensuellement via un coefficient dépendant de la durée (3/4/5 ans).
-   - Total mensuel tout inclus = location matériel + abonnements mensuels. */
+   - Financement du matériel : même moteur que l'Impression (calc.js — leaser, durée, périodicité et
+     coefficient du bloc Financement du haut, avec le même bascule marge -> loyer / loyer -> marge) —
+     pas de barème séparé pour la Téléphonie.
+   - Total mensuel tout inclus = location matériel (toujours ramenée au mois) + abonnements mensuels. */
 function computeTelephonie(state) {
   const t = state.telephonie;
   const centrex = t.systeme !== "trunk";
@@ -97,15 +98,27 @@ function computeTelephonie(state) {
   const bonsTotal = num(t.bonsEnregistrement) < 2 ? 0 : (num(t.bonsEnregistrement) - 1) * 150;
   const usersForInstall = centrex ? num(c.utilisateurs) : num(tr.lignesSimultanees);
   const installation = usersForInstall < 4.5 ? 450 : 550;
-
   const materielDisplay = materielTotal + bonsTotal; // matériel + bons d'enregistrement
-  const margeDisplay = num(t.marge) + num(t.rachat) + num(t.cadeaux); // marge + rachat + cadeaux
-  const totalMaterielFas = materielDisplay + installation + fas + margeDisplay;
+  const baseCost = materielDisplay + installation + fas; // équivalent du "prixComplet" côté Impression
 
-  const coeff = TEL_DUREE_COEFF[num(t.dureeAnnee)] || 0;
-  const totalLocation = totalMaterielFas * coeff / 300;
+  // Financement : même moteur que l'Impression (leaser/durée/périodicité/coefficient du bloc du haut).
+  const div = perDivisor(state);
+  let financed, marge, loyerT;
+  if (t.margeMode === "loyer") {
+    loyerT = num(t.loyerCible) * div;
+    financed = financedFromLoyer(state, loyerT);
+    marge = financed - baseCost - num(t.rachat) - num(t.cadeaux);
+  } else {
+    marge = num(t.marge);
+    financed = baseCost + marge + num(t.rachat) + num(t.cadeaux);
+    loyerT = financed * effCoeff(state, financed) / 100;
+  }
+  const coeffT = baseCoeff(state, financed);
+  const margeDisplay = marge + num(t.rachat) + num(t.cadeaux); // marge + rachat + cadeaux, pour la synthèse
+  const totalLocation = loyerT / div;      // affiché selon la périodicité de la proposition (comme l'Impression)
+  const totalLocationMensuel = loyerT / 3; // toujours ramené au mois, pour le total "tout inclus"
 
-  const totalMensuel = totalLocation + abonnementsMensuels;
+  const totalMensuel = totalLocationMensuel + abonnementsMensuels;
 
   return {
     systemeTotal, portageFas, connectivites, connPrixTotal, connFasTotal,
@@ -113,7 +126,7 @@ function computeTelephonie(state) {
     mobiles, mobileTotal, carteSimTotal,
     abonnementsMensuels, fas,
     materiels, materielTotal, bonsTotal, installation, materielDisplay, margeDisplay,
-    totalMaterielFas, coeff, totalLocation, totalMensuel,
+    financed, coeffT, marge, totalLocation, totalLocationMensuel, totalMensuel,
   };
 }
 
@@ -166,7 +179,7 @@ function renderTelephonie() {
     <section class="card tel-card">
       <h2>Lien internet</h2>
       ${t.connectivites.map((cn, i) => `
-        <div class="grid">
+        <div class="grid sp-price-row">
           <label class="fld"><span>Type (ligne ${i + 1})</span>
             <select data-scope="telarr" data-arr="connectivites" data-idx="${i}" data-field="type">
               ${TEL_CONNECTIVITE_TYPES.map((ty) => `<option value="${ty}" ${cn.type === ty ? "selected" : ""}>${ty}</option>`).join("")}
@@ -195,36 +208,40 @@ function renderTelephonie() {
 
     <section class="card tel-card">
       <h2>Forfait mobile</h2>
-      ${t.mobiles.map((m, i) => `
-        <div class="grid">
-          <label class="fld wide"><span>Forfait (ligne ${i + 1})</span>
-            <select data-scope="telarr" data-arr="mobiles" data-idx="${i}" data-field="forfait">
-              <option value="">—</option>
-              ${TEL_MOBILE_FORFAITS.map((f) => `<option value="${esc(f.label)}" ${m.forfait === f.label ? "selected" : ""}>${f.label} (${eur(f.prix)})</option>`).join("")}
-            </select></label>
-          <label class="fld"><span>Quantité</span>
-            <input type="number" step="1" min="0" data-scope="telarr" data-arr="mobiles" data-idx="${i}" data-field="quantite" value="${esc(m.quantite)}"></label>
-          <div class="fld"><span>Montant</span><div class="ro" id="tel-mob-montant-${i}"></div></div>
-        </div>`).join("")}
+      <div class="tel-pair-2">
+        ${t.mobiles.map((m, i) => `
+          <div class="grid sp-price-row">
+            <label class="fld"><span>Forfait (ligne ${i + 1})</span>
+              <select data-scope="telarr" data-arr="mobiles" data-idx="${i}" data-field="forfait">
+                <option value="">—</option>
+                ${TEL_MOBILE_FORFAITS.map((f) => `<option value="${esc(f.label)}" ${m.forfait === f.label ? "selected" : ""}>${f.label} (${eur(f.prix)})</option>`).join("")}
+              </select></label>
+            <label class="fld"><span>Quantité</span>
+              <input type="number" step="1" min="0" data-scope="telarr" data-arr="mobiles" data-idx="${i}" data-field="quantite" value="${esc(m.quantite)}"></label>
+            <div class="fld"><span>Montant</span><div class="ro" id="tel-mob-montant-${i}"></div></div>
+          </div>`).join("")}
+      </div>
       <div class="grid">
-        <label class="fld"><span>Cartes SIM (quantité) <small>(${eur(TEL_CARTE_SIM_PRICE)} / carte)</small></span>
+        <label class="fld"><span>Cartes SIM (à fournir) <small>(${eur(TEL_CARTE_SIM_PRICE)} / carte)</small></span>
           <input type="number" step="1" min="0" data-scope="telephonie" data-key="carteSimQty" value="${esc(t.carteSimQty)}"></label>
       </div>
     </section>
 
     <section class="card tel-card">
       <h2>Matériel</h2>
-      ${t.materiels.map((m, i) => `
-        <div class="grid">
-          <label class="fld wide"><span>Article ${i + 1}</span>
-            <select data-scope="telarr" data-arr="materiels" data-idx="${i}" data-field="type">
-              <option value="">—</option>
-              ${TEL_MATERIEL_CATALOG.map((c) => `<option value="${esc(c.label)}" ${m.type === c.label ? "selected" : ""}>${c.label} (${eur(c.prix)})</option>`).join("")}
-            </select></label>
-          <label class="fld"><span>Quantité</span>
-            <input type="number" step="1" min="0" data-scope="telarr" data-arr="materiels" data-idx="${i}" data-field="quantite" value="${esc(m.quantite)}"></label>
-          <div class="fld"><span>Montant</span><div class="ro" id="tel-mat-montant-${i}"></div></div>
-        </div>`).join("")}
+      <div class="tel-pair-3">
+        ${t.materiels.map((m, i) => `
+          <div class="grid sp-price-row">
+            <label class="fld"><span>Article ${i + 1}</span>
+              <select data-scope="telarr" data-arr="materiels" data-idx="${i}" data-field="type">
+                <option value="">—</option>
+                ${TEL_MATERIEL_CATALOG.map((c) => `<option value="${esc(c.label)}" ${m.type === c.label ? "selected" : ""}>${c.label} (${eur(c.prix)})</option>`).join("")}
+              </select></label>
+            <label class="fld"><span>Quantité</span>
+              <input type="number" step="1" min="0" data-scope="telarr" data-arr="materiels" data-idx="${i}" data-field="quantite" value="${esc(m.quantite)}"></label>
+            <div class="fld"><span>Montant</span><div class="ro" id="tel-mat-montant-${i}"></div></div>
+          </div>`).join("")}
+      </div>
       <div class="grid">
         <label class="fld"><span>Bons d'enregistrement (quantité) <small>(gratuit le 1er, 150 € au-delà)</small></span>
           <input type="number" step="1" min="0" data-scope="telephonie" data-key="bonsEnregistrement" value="${esc(t.bonsEnregistrement)}"></label>
@@ -235,13 +252,16 @@ function renderTelephonie() {
           <label class="fld money"><span>Cadeaux</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="cadeaux" value="${esc(t.cadeaux)}">`)}</label>
           <label class="fld"><span>Détail des cadeaux</span>
             <input type="text" data-scope="telephonie" data-key="cadeauxLabel" value="${esc(t.cadeauxLabel)}"></label>
-          <label class="fld money"><span>Marge</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="marge" value="${esc(t.marge)}">`)}</label>
-          <label class="fld"><span>Durée</span>
-            <select data-scope="telephonie" data-key="dureeAnnee">
-              <option value="3" ${num(t.dureeAnnee) === 3 ? "selected" : ""}>3 ans</option>
-              <option value="4" ${num(t.dureeAnnee) === 4 ? "selected" : ""}>4 ans</option>
-              <option value="5" ${num(t.dureeAnnee) === 5 ? "selected" : ""}>5 ans</option>
+          <label class="fld"><span>Mode</span>
+            <select data-scope="telephonie" data-key="margeMode">
+              <option value="marge" ${t.margeMode !== "loyer" ? "selected" : ""}>Marge → Loyer (calculé)</option>
+              <option value="loyer" ${t.margeMode === "loyer" ? "selected" : ""}>Loyer cible → Marge (calculée)</option>
             </select></label>
+          ${t.margeMode === "loyer" ? `
+          <label class="fld money"><span>Loyer proposé ${perShort(STATE)}</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="loyerCible" value="${esc(t.loyerCible)}">`)}</label>
+          <div class="fld"><span>Marge (calculée)</span><div class="ro" id="tel-fin-calc"></div></div>` : `
+          <label class="fld money"><span>Marge</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="marge" value="${esc(t.marge)}">`)}</label>
+          <div class="fld"><span>Loyer proposé (calculé) ${perShort(STATE)}</span><div class="ro" id="tel-fin-calc"></div></div>`}
         </div>
       </div>
     </section>`;
@@ -257,13 +277,15 @@ function renderTelResults() {
   r.materiels.forEach((m, i) => {
     const el = document.getElementById("tel-mat-montant-" + i); if (el) el.textContent = eur(m.montant);
   });
+  const finCalcEl = document.getElementById("tel-fin-calc");
+  if (finCalcEl) finCalcEl.textContent = t.margeMode === "loyer" ? eur(r.marge) : eur(r.totalLocation);
   const res = document.getElementById("tel-results"); if (!res) return;
   res.innerHTML = `
     <h2>Synthèse Téléphonie</h2>
     <div class="totals">
       <div class="tot"><span>Abonnements</span><b>${eur(r.abonnementsMensuels)}</b>
         <small class="tot-detail">Système : ${eur(r.systemeTotal)} · Lien internet : ${eur(r.dataTotal)} · Mobile : ${eur(r.mobileTotal)}</small></div>
-      <div class="tot"><span>Matériel <small>(en location)</small></span><b>${eur(r.totalLocation)}</b>
+      <div class="tot"><span>Matériel <small>(en location)</small></span><b>${eur(r.totalLocation)} <small class="unit">${perShort(STATE)}</small></b>
         <small class="tot-detail">Matériel : ${eur(r.materielDisplay)} · Installation : ${eur(r.installation)} · FAS : ${eur(r.fas)} · Marge : ${eur(r.margeDisplay)}</small></div>
       <div class="tot big tel"><span>Total mensuel tout inclus</span><b>${eur(r.totalMensuel)}</b></div>
     </div>`;

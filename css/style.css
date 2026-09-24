@@ -86,6 +86,11 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .tel-card h2 { color: var(--tel-accent); }
 .tel-card .subgrid h4 { color: var(--tel-accent); }
 .tot.big.tel { border-color: var(--tel-accent); } .tot.big.tel b { color: var(--tel-accent); }
+/* Lignes compactes (lien internet, forfait mobile, matériel) : tout sur une
+   ligne, avec plusieurs groupes par rangée sur les écrans assez larges. */
+.tel-pair-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 14px; margin-bottom: 8px; }
+.tel-pair-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 14px; margin-bottom: 8px; }
+.tel-pair-2 .sp-price-row, .tel-pair-3 .sp-price-row { margin: 0; }
 
 /* Pas de flèches (spinners) dans les champs numériques */
 input[type="number"]::-webkit-outer-spin-button,
@@ -233,6 +238,8 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
 @media (max-width: 680px) {
   .machine-cols { grid-template-columns: 1fr; }
+  .tel-pair-2, .tel-pair-3 { grid-template-columns: 1fr; }
+  .sp-price-row { flex-wrap: wrap; }
 
   /* Barre du haut : trop de boutons pour un écran de téléphone — on passe
      en icônes seules (le libellé texte est masqué) et on resserre. */
