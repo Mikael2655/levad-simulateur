@@ -506,12 +506,9 @@ function renderApp() {
     </section>
 
     ${s.simMode === "telephonie" ? `
-    <section class="card">
-      <h2>Téléphonie</h2>
-      <div id="telephonie"></div>
-    </section>
+    <div id="telephonie"></div>
 
-    <section class="card results" id="tel-results"></section>
+    <section class="card results tel-card" id="tel-results"></section>
 
     <section class="card actions">
       <button class="btn ghost" data-action="reset">Réinitialiser</button>

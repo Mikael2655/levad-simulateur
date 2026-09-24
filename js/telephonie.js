@@ -1,8 +1,8 @@
 /* ============================================================
-   Simulateur Téléphonie (Centrex/Trunk + Data + Mobile + Matériel).
-   Tarifs repris du fichier « Simulateur téléphonie KISS » fourni.
-   Calcul en direct, affiché à l'écran uniquement (pas d'export
-   Excel/PDF/PowerPoint pour l'instant).
+   Simulateur Téléphonie — 4 blocs : Système (Centrex/Trunk), Lien
+   internet, Forfait mobile, Matériel. Tarifs repris du fichier
+   « Simulateur téléphonie KISS » fourni. Calcul en direct, affiché à
+   l'écran uniquement (pas d'export Excel/PDF/PowerPoint pour l'instant).
    ============================================================ */
 
 const TEL_MOBILE_FORFAITS = [
@@ -98,7 +98,9 @@ function computeTelephonie(state) {
   const usersForInstall = centrex ? num(c.utilisateurs) : num(tr.lignesSimultanees);
   const installation = usersForInstall < 4.5 ? 450 : 550;
 
-  const totalMaterielFas = materielTotal + bonsTotal + installation + fas + num(t.rachat) + num(t.cadeaux) + num(t.marge);
+  const materielDisplay = materielTotal + bonsTotal; // matériel + bons d'enregistrement
+  const margeDisplay = num(t.marge) + num(t.rachat) + num(t.cadeaux); // marge + rachat + cadeaux
+  const totalMaterielFas = materielDisplay + installation + fas + margeDisplay;
 
   const coeff = TEL_DUREE_COEFF[num(t.dureeAnnee)] || 0;
   const totalLocation = totalMaterielFas * coeff / 300;
@@ -110,51 +112,59 @@ function computeTelephonie(state) {
     gtrTotal, secours4gTotal, secours5gTotal, dataTotal,
     mobiles, mobileTotal, carteSimTotal,
     abonnementsMensuels, fas,
-    materiels, materielTotal, bonsTotal, installation,
+    materiels, materielTotal, bonsTotal, installation, materielDisplay, margeDisplay,
     totalMaterielFas, coeff, totalLocation, totalMensuel,
   };
 }
 
 /* -------------------- Rendu -------------------- */
+/* 4 blocs distincts (chacun sa carte) : Système, Lien internet, Forfait
+   mobile, Matériel — comme la SA (bleu/gris) et la SP (vert) côté Impression,
+   mais séparés en blocs plutôt qu'en 2 colonnes puisqu'il n'y a pas de
+   situation actuelle / proposée en téléphonie. */
 function renderTelephonie() {
   const box = document.getElementById("telephonie"); if (!box) return;
   const t = STATE.telephonie;
   const centrex = t.systeme !== "trunk";
   box.innerHTML = `
-    <div class="grid">
-      <label class="fld"><span>Système</span>
-        <select data-scope="telephonie" data-key="systeme">
-          <option value="centrex" ${centrex ? "selected" : ""}>Centrex (avec appli)</option>
-          <option value="trunk" ${!centrex ? "selected" : ""}>Trunk (sans appli)</option>
-        </select></label>
-    </div>
-    ${centrex ? `
-    <div class="subgrid"><h4>Centrex (avec appli)</h4>
+    <section class="card tel-card">
+      <h2>Système</h2>
       <div class="grid">
-        <label class="fld"><span>Utilisateurs</span>
-          <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.utilisateurs" value="${esc(t.centrex.utilisateurs)}"></label>
-        <label class="fld"><span>SDA à créer</span>
-          <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.sdaACreer" value="${esc(t.centrex.sdaACreer)}"></label>
-        <label class="fld"><span>Numéros mnémo</span>
-          <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.numerosMnemo" value="${esc(t.centrex.numerosMnemo)}"></label>
-        <label class="fld"><span>Numéros à porter <small>(gratuit)</small></span>
-          <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.numerosAPorter" value="${esc(t.centrex.numerosAPorter)}"></label>
+        <label class="fld"><span>Système</span>
+          <select data-scope="telephonie" data-key="systeme">
+            <option value="centrex" ${centrex ? "selected" : ""}>Centrex (avec appli)</option>
+            <option value="trunk" ${!centrex ? "selected" : ""}>Trunk (sans appli)</option>
+          </select></label>
       </div>
-    </div>` : `
-    <div class="subgrid"><h4>Trunk (sans appli)</h4>
-      <div class="grid">
-        <label class="fld"><span>Lignes simultanées</span>
-          <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.lignesSimultanees" value="${esc(t.trunk.lignesSimultanees)}"></label>
-        <label class="fld"><span>SDA à créer</span>
-          <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.sdaACreer" value="${esc(t.trunk.sdaACreer)}"></label>
-        <label class="fld"><span>Numéros mnémo</span>
-          <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.numerosMnemo" value="${esc(t.trunk.numerosMnemo)}"></label>
-        <label class="fld"><span>Numéros à porter <small>(3 € / numéro)</small></span>
-          <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.numerosAPorter" value="${esc(t.trunk.numerosAPorter)}"></label>
-      </div>
-    </div>`}
+      ${centrex ? `
+      <div class="subgrid"><h4>Centrex (avec appli)</h4>
+        <div class="grid">
+          <label class="fld"><span>Utilisateurs</span>
+            <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.utilisateurs" value="${esc(t.centrex.utilisateurs)}"></label>
+          <label class="fld"><span>SDA à créer</span>
+            <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.sdaACreer" value="${esc(t.centrex.sdaACreer)}"></label>
+          <label class="fld"><span>Numéros mnémo</span>
+            <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.numerosMnemo" value="${esc(t.centrex.numerosMnemo)}"></label>
+          <label class="fld"><span>Numéros à porter <small>(gratuit)</small></span>
+            <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.numerosAPorter" value="${esc(t.centrex.numerosAPorter)}"></label>
+        </div>
+      </div>` : `
+      <div class="subgrid"><h4>Trunk (sans appli)</h4>
+        <div class="grid">
+          <label class="fld"><span>Lignes simultanées</span>
+            <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.lignesSimultanees" value="${esc(t.trunk.lignesSimultanees)}"></label>
+          <label class="fld"><span>SDA à créer</span>
+            <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.sdaACreer" value="${esc(t.trunk.sdaACreer)}"></label>
+          <label class="fld"><span>Numéros mnémo</span>
+            <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.numerosMnemo" value="${esc(t.trunk.numerosMnemo)}"></label>
+          <label class="fld"><span>Numéros à porter <small>(3 € / numéro)</small></span>
+            <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.numerosAPorter" value="${esc(t.trunk.numerosAPorter)}"></label>
+        </div>
+      </div>`}
+    </section>
 
-    <div class="subgrid"><h4>Data / Connectivité</h4>
+    <section class="card tel-card">
+      <h2>Lien internet</h2>
       ${t.connectivites.map((cn, i) => `
         <div class="grid">
           <label class="fld"><span>Type (ligne ${i + 1})</span>
@@ -171,20 +181,20 @@ function renderTelephonie() {
           <label class="fld money"><span>Prix mensuel</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telarr" data-arr="connectivites" data-idx="${i}" data-field="prix" value="${esc(cn.prix)}">`)}</label>
           <label class="fld money"><span>FAS</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telarr" data-arr="connectivites" data-idx="${i}" data-field="fas" value="${esc(cn.fas)}">`)}</label>
         </div>`).join("")}
-    </div>
-
-    <div class="subgrid"><h4>Options</h4>
-      <div class="grid">
-        <label class="fld"><span>GTR 4h 7/24 (quantité) <small>(${eur(TEL_GTR_RATE)} / mois)</small></span>
-          <input type="number" step="1" min="0" data-scope="telephonie" data-key="gtrQty" value="${esc(t.gtrQty)}"></label>
-        <label class="fld"><span>Secours 4G illimité (quantité) <small>(${eur(TEL_SECOURS4G_RATE)} / mois)</small></span>
-          <input type="number" step="1" min="0" data-scope="telephonie" data-key="secours4gQty" value="${esc(t.secours4gQty)}"></label>
-        <label class="fld"><span>Secours 5G illimité (quantité) <small>(${eur(TEL_SECOURS5G_RATE)} / mois)</small></span>
-          <input type="number" step="1" min="0" data-scope="telephonie" data-key="secours5gQty" value="${esc(t.secours5gQty)}"></label>
+      <div class="subgrid"><h4>Options</h4>
+        <div class="grid">
+          <label class="fld"><span>GTR 4h 7/24 (quantité) <small>(${eur(TEL_GTR_RATE)} / mois)</small></span>
+            <input type="number" step="1" min="0" data-scope="telephonie" data-key="gtrQty" value="${esc(t.gtrQty)}"></label>
+          <label class="fld"><span>Secours 4G illimité (quantité) <small>(${eur(TEL_SECOURS4G_RATE)} / mois)</small></span>
+            <input type="number" step="1" min="0" data-scope="telephonie" data-key="secours4gQty" value="${esc(t.secours4gQty)}"></label>
+          <label class="fld"><span>Secours 5G illimité (quantité) <small>(${eur(TEL_SECOURS5G_RATE)} / mois)</small></span>
+            <input type="number" step="1" min="0" data-scope="telephonie" data-key="secours5gQty" value="${esc(t.secours5gQty)}"></label>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div class="subgrid"><h4>Mobile</h4>
+    <section class="card tel-card">
+      <h2>Forfait mobile</h2>
       ${t.mobiles.map((m, i) => `
         <div class="grid">
           <label class="fld wide"><span>Forfait (ligne ${i + 1})</span>
@@ -200,9 +210,10 @@ function renderTelephonie() {
         <label class="fld"><span>Cartes SIM (quantité) <small>(${eur(TEL_CARTE_SIM_PRICE)} / carte)</small></span>
           <input type="number" step="1" min="0" data-scope="telephonie" data-key="carteSimQty" value="${esc(t.carteSimQty)}"></label>
       </div>
-    </div>
+    </section>
 
-    <div class="subgrid"><h4>Matériel</h4>
+    <section class="card tel-card">
+      <h2>Matériel</h2>
       ${t.materiels.map((m, i) => `
         <div class="grid">
           <label class="fld wide"><span>Article ${i + 1}</span>
@@ -218,23 +229,22 @@ function renderTelephonie() {
         <label class="fld"><span>Bons d'enregistrement (quantité) <small>(gratuit le 1er, 150 € au-delà)</small></span>
           <input type="number" step="1" min="0" data-scope="telephonie" data-key="bonsEnregistrement" value="${esc(t.bonsEnregistrement)}"></label>
       </div>
-    </div>
-
-    <div class="subgrid"><h4>Financement du matériel</h4>
-      <div class="grid">
-        <label class="fld money"><span>Rachat contrat actuel</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="rachat" value="${esc(t.rachat)}">`)}</label>
-        <label class="fld money"><span>Cadeaux</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="cadeaux" value="${esc(t.cadeaux)}">`)}</label>
-        <label class="fld"><span>Détail des cadeaux</span>
-          <input type="text" data-scope="telephonie" data-key="cadeauxLabel" value="${esc(t.cadeauxLabel)}"></label>
-        <label class="fld money"><span>Marge</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="marge" value="${esc(t.marge)}">`)}</label>
-        <label class="fld"><span>Durée</span>
-          <select data-scope="telephonie" data-key="dureeAnnee">
-            <option value="3" ${num(t.dureeAnnee) === 3 ? "selected" : ""}>3 ans</option>
-            <option value="4" ${num(t.dureeAnnee) === 4 ? "selected" : ""}>4 ans</option>
-            <option value="5" ${num(t.dureeAnnee) === 5 ? "selected" : ""}>5 ans</option>
-          </select></label>
+      <div class="subgrid"><h4>Financement</h4>
+        <div class="grid">
+          <label class="fld money"><span>Rachat contrat actuel</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="rachat" value="${esc(t.rachat)}">`)}</label>
+          <label class="fld money"><span>Cadeaux</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="cadeaux" value="${esc(t.cadeaux)}">`)}</label>
+          <label class="fld"><span>Détail des cadeaux</span>
+            <input type="text" data-scope="telephonie" data-key="cadeauxLabel" value="${esc(t.cadeauxLabel)}"></label>
+          <label class="fld money"><span>Marge</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="marge" value="${esc(t.marge)}">`)}</label>
+          <label class="fld"><span>Durée</span>
+            <select data-scope="telephonie" data-key="dureeAnnee">
+              <option value="3" ${num(t.dureeAnnee) === 3 ? "selected" : ""}>3 ans</option>
+              <option value="4" ${num(t.dureeAnnee) === 4 ? "selected" : ""}>4 ans</option>
+              <option value="5" ${num(t.dureeAnnee) === 5 ? "selected" : ""}>5 ans</option>
+            </select></label>
+        </div>
       </div>
-    </div>`;
+    </section>`;
   renderTelResults();
 }
 
@@ -251,14 +261,10 @@ function renderTelResults() {
   res.innerHTML = `
     <h2>Synthèse Téléphonie</h2>
     <div class="totals">
-      <div class="tot"><span>Abonnements mensuels</span><b>${eur(r.abonnementsMensuels)}</b>
-        <small class="tot-detail">Système : ${eur(r.systemeTotal)} · Data/options : ${eur(r.dataTotal)} · Mobile : ${eur(r.mobileTotal)}</small></div>
-      <div class="tot"><span>FAS <small>(non récurrent)</small></span><b>${eur(r.fas)}</b></div>
-      <div class="tot"><span>Installation <small>(non récurrent)</small></span><b>${eur(r.installation)}</b></div>
-      <div class="tot"><span>Matériel financé (total)</span><b>${eur(r.totalMaterielFas)}</b>
-        <small class="tot-detail">Matériel : ${eur(r.materielTotal)} · Bons d'enregistrement : ${eur(r.bonsTotal)}</small></div>
-      <div class="tot"><span>Location mensuelle matériel</span><b>${eur(r.totalLocation)}</b>
-        <small class="tot-detail">Coefficient ${frNum(r.coeff, 2)} · ${esc(t.dureeAnnee)} ans</small></div>
-      <div class="tot big pos"><span>Total mensuel tout inclus</span><b>${eur(r.totalMensuel)}</b></div>
+      <div class="tot"><span>Abonnements</span><b>${eur(r.abonnementsMensuels)}</b>
+        <small class="tot-detail">Système : ${eur(r.systemeTotal)} · Lien internet : ${eur(r.dataTotal)} · Mobile : ${eur(r.mobileTotal)}</small></div>
+      <div class="tot"><span>Matériel <small>(en location)</small></span><b>${eur(r.totalLocation)}</b>
+        <small class="tot-detail">Matériel : ${eur(r.materielDisplay)} · Installation : ${eur(r.installation)} · FAS : ${eur(r.fas)} · Marge : ${eur(r.margeDisplay)}</small></div>
+      <div class="tot big tel"><span>Total mensuel tout inclus</span><b>${eur(r.totalMensuel)}</b></div>
     </div>`;
 }

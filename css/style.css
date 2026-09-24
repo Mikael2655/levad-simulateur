@@ -5,6 +5,7 @@
   --accent: #8c9d8d; --pos: #1f7a3d; --neg: #b23b2e;
   --field: #fbfcfb; --shadow: 0 1px 3px rgba(0,0,0,.08);
   --sa-bg: #eef1f4; --sa-accent: #8a97a6; --sp-bg: #eaf2ec;
+  --tel-bg: #fbeeed; --tel-accent: #c65f54;
 }
 :root[data-theme="dark"] {
   --bg: #141715; --card: #1e2320; --ink: #e7ece8; --muted: #9aa79d;
@@ -12,6 +13,7 @@
   --accent: #6f9a76; --pos: #5ad08a; --neg: #ef7a6d;
   --field: #171b18; --shadow: 0 1px 3px rgba(0,0,0,.35);
   --sa-bg: #20262b; --sa-accent: #5f6b78; --sp-bg: #1b2620;
+  --tel-bg: #2b1e1c; --tel-accent: #e08a7d;
 }
 * { box-sizing: border-box; }
 body {
@@ -77,6 +79,13 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .machine-cols .col:nth-child(1) { background: var(--sa-bg); border-left: 4px solid var(--sa-accent); }
 .machine-cols .col:nth-child(2) { background: var(--sp-bg); border-left: 4px solid var(--brand); }
 .machine-cols .col:nth-child(2) h3 { color: var(--brand); }
+
+/* Simulateur Téléphonie : rouge clair, pour le distinguer visuellement de
+   l'Impression (SA bleu/gris, SP vert). */
+.tel-card { background: var(--tel-bg); border-left: 4px solid var(--tel-accent); }
+.tel-card h2 { color: var(--tel-accent); }
+.tel-card .subgrid h4 { color: var(--tel-accent); }
+.tot.big.tel { border-color: var(--tel-accent); } .tot.big.tel b { color: var(--tel-accent); }
 
 /* Pas de flèches (spinners) dans les champs numériques */
 input[type="number"]::-webkit-outer-spin-button,
