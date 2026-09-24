@@ -833,7 +833,7 @@ function machineCard(m, i) {
         <h3>Situation actuelle</h3>
         <div class="grid">${SA_MAIN.map((f) => mField(m.id, f)).join("")}</div>
         <label class="fld chk"><input type="checkbox" data-scope="machine" data-mid="${m.id}" data-key="prospect" ${m.prospect ? "checked" : ""}>
-          <span>Prospect (chez un concurrent) — sinon client Levad</span></label>
+          <span>Prospect (chez un concurrent)</span></label>
         <div class="subgrid"><h4>N&B</h4><div class="grid">${SA_NB.map((f) => mField(m.id, f)).join("")}</div></div>
         <div class="subgrid"><h4>Couleur</h4><div class="grid">${SA_COUL.map((f) => mField(m.id, f)).join("")}</div></div>
         <div class="subgrid"><h4>Service &amp; abonnements <small>(actuel)</small></h4>
