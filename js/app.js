@@ -1135,7 +1135,11 @@ document.addEventListener("change", (e) => {
   if (t.dataset.scope === "root") {
     STATE[t.dataset.key] = t.dataset.key === "durationTrim" ? parseInt(t.value, 10) : t.value;
     saveState(STATE);
-    if (t.dataset.key === "simMode") { renderApp(); return; } // bascule Impression / Téléphonie : sections différentes
+    if (t.dataset.key === "simMode") {
+      // Téléphonie : la proposition est par défaut mensuelle (abonnements télécom facturés au mois).
+      if (t.value === "telephonie") STATE.periodiciteProposition = "M";
+      saveState(STATE); renderApp(); return;
+    }
     if (t.dataset.key === "leaser") renderAdmin();
     renderMachines(); renderResults(); // périodicité/leaser : rafraîchit les libellés
   } else if (t.dataset.scope === "machine-sel") {

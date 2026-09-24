@@ -36,7 +36,7 @@ function telMaterielPrix(label) { const f = TEL_MATERIEL_CATALOG.find((x) => x.l
 function telCentrexUtilPrix(q) { if (q < 5.5) return 14; if (q < 10.5) return 13; if (q < 20.5) return 12; return 11; }
 function telTrunkLignesPrix(q) { if (q < 5.5) return 12; if (q < 10.5) return 11; if (q < 20.5) return 10; return 9; }
 
-function defaultTelConnectivite() { return { type: TEL_CONNECTIVITE_TYPES[0], quantite: 0, prix: 0, fas: 0, operateur: "" }; }
+function defaultTelConnectivite() { return { type: "", quantite: 0, prix: 0, fas: 0, operateur: "" }; }
 function defaultTelMobileLine() { return { forfait: "", quantite: 0 }; }
 function defaultTelMateriel() { return { type: "", quantite: 0 }; }
 function defaultTelephonie() {
@@ -182,6 +182,7 @@ function renderTelephonie() {
         <div class="grid sp-price-row">
           <label class="fld"><span>Type (ligne ${i + 1})</span>
             <select data-scope="telarr" data-arr="connectivites" data-idx="${i}" data-field="type">
+              <option value="">—</option>
               ${TEL_CONNECTIVITE_TYPES.map((ty) => `<option value="${ty}" ${cn.type === ty ? "selected" : ""}>${ty}</option>`).join("")}
             </select></label>
           <label class="fld"><span>Opérateur</span>
@@ -210,7 +211,7 @@ function renderTelephonie() {
       <h2>Forfait mobile</h2>
       <div class="tel-pair-2">
         ${t.mobiles.map((m, i) => `
-          <div class="grid sp-price-row">
+          <div class="grid sp-price-row tel-item-row">
             <label class="fld"><span>Forfait (ligne ${i + 1})</span>
               <select data-scope="telarr" data-arr="mobiles" data-idx="${i}" data-field="forfait">
                 <option value="">—</option>
@@ -231,7 +232,7 @@ function renderTelephonie() {
       <h2>Matériel</h2>
       <div class="tel-pair-3">
         ${t.materiels.map((m, i) => `
-          <div class="grid sp-price-row">
+          <div class="grid sp-price-row tel-item-row">
             <label class="fld"><span>Article ${i + 1}</span>
               <select data-scope="telarr" data-arr="materiels" data-idx="${i}" data-field="type">
                 <option value="">—</option>
@@ -242,9 +243,10 @@ function renderTelephonie() {
             <div class="fld"><span>Montant</span><div class="ro" id="tel-mat-montant-${i}"></div></div>
           </div>`).join("")}
       </div>
-      <div class="grid">
-        <label class="fld"><span>Bons d'enregistrement (quantité) <small>(gratuit le 1er, 150 € au-delà)</small></span>
+      <div class="grid sp-price-row">
+        <label class="fld"><span>Bons d'enregistrement (qté) <small>(gratuit le 1er, 150 € au-delà)</small></span>
           <input type="number" step="1" min="0" data-scope="telephonie" data-key="bonsEnregistrement" value="${esc(t.bonsEnregistrement)}"></label>
+        <div class="fld"><span>Installation (calculée)</span><div class="ro" id="tel-installation-calc"></div></div>
       </div>
       <div class="subgrid"><h4>Financement</h4>
         <div class="grid">
@@ -252,16 +254,18 @@ function renderTelephonie() {
           <label class="fld money"><span>Cadeaux</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="cadeaux" value="${esc(t.cadeaux)}">`)}</label>
           <label class="fld"><span>Détail des cadeaux</span>
             <input type="text" data-scope="telephonie" data-key="cadeauxLabel" value="${esc(t.cadeauxLabel)}"></label>
+        </div>
+        <div class="grid">
           <label class="fld"><span>Mode</span>
             <select data-scope="telephonie" data-key="margeMode">
               <option value="marge" ${t.margeMode !== "loyer" ? "selected" : ""}>Marge → Loyer (calculé)</option>
               <option value="loyer" ${t.margeMode === "loyer" ? "selected" : ""}>Loyer cible → Marge (calculée)</option>
             </select></label>
           ${t.margeMode === "loyer" ? `
-          <label class="fld money"><span>Loyer proposé ${perShort(STATE)}</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="loyerCible" value="${esc(t.loyerCible)}">`)}</label>
+          <label class="fld money"><span>Loyer proposé</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="loyerCible" value="${esc(t.loyerCible)}">`)}</label>
           <div class="fld"><span>Marge (calculée)</span><div class="ro" id="tel-fin-calc"></div></div>` : `
           <label class="fld money"><span>Marge</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="telephonie" data-key="marge" value="${esc(t.marge)}">`)}</label>
-          <div class="fld"><span>Loyer proposé (calculé) ${perShort(STATE)}</span><div class="ro" id="tel-fin-calc"></div></div>`}
+          <div class="fld"><span>Loyer proposé (calculé)</span><div class="ro" id="tel-fin-calc"></div></div>`}
         </div>
       </div>
     </section>`;
@@ -279,6 +283,8 @@ function renderTelResults() {
   });
   const finCalcEl = document.getElementById("tel-fin-calc");
   if (finCalcEl) finCalcEl.textContent = t.margeMode === "loyer" ? eur(r.marge) : eur(r.totalLocation);
+  const installEl = document.getElementById("tel-installation-calc");
+  if (installEl) installEl.textContent = eur(r.installation);
   const res = document.getElementById("tel-results"); if (!res) return;
   res.innerHTML = `
     <h2>Synthèse Téléphonie</h2>

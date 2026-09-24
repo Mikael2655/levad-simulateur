@@ -22,6 +22,16 @@ function fileName(state, ext, label) {
 }
 
 
+/* Complète un tableau (téléphonie : connectivités/mobiles/matériels) avec les
+   éléments par défaut manquants, sans jamais tronquer une saisie existante —
+   utile quand le nombre de lignes par défaut augmente d'une version à l'autre
+   (ex. un article matériel supplémentaire) : les anciennes simus chargées
+   (ou le brouillon auto-sauvegardé) gagnent les nouvelles lignes vides au
+   lieu de rester bloquées sur l'ancien nombre. */
+function padTelArr(arr, baseArr) {
+  if (arr.length >= baseArr.length) return arr;
+  return arr.concat(baseArr.slice(arr.length).map((x) => ({ ...x })));
+}
 /* Fusion défensive d'un état chargé avec les valeurs par défaut (schéma évolutif). */
 function normalizeState(s) {
   const base = defaultState();
@@ -45,12 +55,12 @@ function normalizeState(s) {
       ...base.telephonie, ...(s.telephonie || {}),
       centrex: { ...base.telephonie.centrex, ...((s.telephonie && s.telephonie.centrex) || {}) },
       trunk: { ...base.telephonie.trunk, ...((s.telephonie && s.telephonie.trunk) || {}) },
-      connectivites: (s.telephonie && Array.isArray(s.telephonie.connectivites) && s.telephonie.connectivites.length)
-        ? s.telephonie.connectivites : base.telephonie.connectivites,
-      mobiles: (s.telephonie && Array.isArray(s.telephonie.mobiles) && s.telephonie.mobiles.length)
-        ? s.telephonie.mobiles : base.telephonie.mobiles,
-      materiels: (s.telephonie && Array.isArray(s.telephonie.materiels) && s.telephonie.materiels.length)
-        ? s.telephonie.materiels : base.telephonie.materiels,
+      connectivites: padTelArr((s.telephonie && Array.isArray(s.telephonie.connectivites) && s.telephonie.connectivites.length)
+        ? s.telephonie.connectivites : base.telephonie.connectivites, base.telephonie.connectivites),
+      mobiles: padTelArr((s.telephonie && Array.isArray(s.telephonie.mobiles) && s.telephonie.mobiles.length)
+        ? s.telephonie.mobiles : base.telephonie.mobiles, base.telephonie.mobiles),
+      materiels: padTelArr((s.telephonie && Array.isArray(s.telephonie.materiels) && s.telephonie.materiels.length)
+        ? s.telephonie.materiels : base.telephonie.materiels, base.telephonie.materiels),
     },
   };
 }
