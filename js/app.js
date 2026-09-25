@@ -665,6 +665,11 @@ function marginRows() {
     const calc = computeAll(st);
     st.machines.forEach((m, i) => {
       const r = calc.rows[i]; if (!r) return;
+      // Carte machine jamais configurée pour ce dossier (aucun modèle choisi,
+      // rien financé, marge nulle) : on l'ignore, pour éviter une ligne
+      // fantôme à 0 € dans les Marges (ex. une 2e carte ajoutée puis laissée
+      // vide/supprimée après signature d'un dossier).
+      if (!m.proposedModel && r.financed === 0 && r.margeFinale === 0) return;
       const logistique = num(m.installation) + num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait);
       rows.push({
         simId: s.id, userName: s.userName || "—", date: s.soldAt || st.client.date || "", manual: false,
