@@ -21,6 +21,8 @@ let MANUAL_SALE_OPEN = false; // formulaire « vente en saisie libre » ouvert ?
 let MANUAL_SALE_EDIT_ID = ""; // id de la vente manuelle en cours de modification, "" = nouvelle vente
 let DATE_MODAL_SIM = "";      // id de la simulation dont on édite la date de signature
 let LOADED_SIM_ID = "";       // id de la simulation actuellement chargée (« Charger »), "" = nouvelle saisie
+let MARGINS_VIEW = "real";    // admin : "real" (marge réelle avec markup) ou "quoted" (vue commercial, comme le simulateur)
+let REAL_EDIT_KEY = "";       // "<simId>::<mIdx>" en cours d'édition dans le formulaire marge réelle, "" = fermé
 
 const NUM = "num", TXT = "txt";
 
@@ -671,16 +673,30 @@ function marginRows() {
       // fantôme à 0 € dans les Marges (ex. une 2e carte ajoutée puis laissée
       // vide/supprimée après signature d'un dossier).
       if (!m.proposedModel && r.financed === 0 && r.margeFinale === 0) return;
-      const logistique = num(m.installation) + num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait);
+      const logistiqueQuoted = num(m.installation) + num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait);
+      // Markup admin (montant financé réel, prix d'achat machine, livraison/
+      // retrait et installation réels) : jamais appliqué pour un non-admin,
+      // qui doit toujours voir exactement la marge saisie dans le simulateur.
+      const ov = (s.realOverrides && s.realOverrides[i]) || {};
+      const has = (k) => ov[k] !== undefined && ov[k] !== "" && ov[k] !== null;
+      const hasOverride = ["financedReal", "prixMachineReal", "livraisonReal", "installationReal"].some(has);
+      const livraisonRetraitQuoted = num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait);
+      const financedReal = has("financedReal") ? num(ov.financedReal) : r.financed;
+      const prixCessionReal = has("prixMachineReal") ? num(ov.prixMachineReal) : r.prixMachineEff;
+      const logistiqueReal = (has("livraisonReal") ? num(ov.livraisonReal) : livraisonRetraitQuoted)
+        + (has("installationReal") ? num(ov.installationReal) : num(m.installation));
+      const margeReal = financedReal - r.rachatLocation - r.rachatMaintenance - prixCessionReal - logistiqueReal - r.cadeaux + r.fraisLivraisonFacturer;
+      const useReal = ADMIN && MARGINS_VIEW === "real";
       rows.push({
-        simId: s.id, userName: s.userName || "—", date: s.soldAt || st.client.date || "", manual: false,
+        simId: s.id, mIdx: i, userName: s.userName || "—", date: s.soldAt || st.client.date || "", manual: false,
         client: st.client.name || s.clientName || "—",
         type: m.prospect ? "Prospect" : "Client",
         machine: m.proposedModel || "—",
-        financed: r.financed, livraison: r.fraisLivraisonFacturer,
-        prixCession: r.prixMachineEff, logistique,
+        financed: useReal ? financedReal : r.financed, livraison: r.fraisLivraisonFacturer,
+        prixCession: useReal ? prixCessionReal : r.prixMachineEff, logistique: useReal ? logistiqueReal : logistiqueQuoted,
         rachatLocation: r.rachatLocation, rachatMaintenance: r.rachatMaintenance,
-        marge: r.margeFinale,
+        marge: useReal ? margeReal : r.margeFinale,
+        hasOverride,
       });
     });
   });
@@ -756,6 +772,42 @@ function manualSaleForm(sale) {
   </div>`;
 }
 
+/* Champs de markup admin (réalité vs vue commercial) : chacun remplace un
+   montant du simulateur dans le calcul de la marge réelle, vide = on
+   reprend la valeur du simulateur telle quelle. Jamais visible ni appliqué
+   pour un non-admin. */
+const REAL_MARGIN_FIELDS = [
+  ["financedReal", "Montant financé réel (leasing)"],
+  ["prixMachineReal", "Prix d'achat machine réel"],
+  ["livraisonReal", "Livraison / retrait réels"],
+  ["installationReal", "Installation réelle"],
+];
+/* Formulaire de saisie de la marge réelle d'une machine d'un dossier signé
+   (admin uniquement). `sim` = simulation enregistrée, `mIdx` = index de la
+   machine dans sim.state.machines. */
+function realMarginForm(sim, mIdx) {
+  let st; try { st = normalizeState(JSON.parse(JSON.stringify(sim.state))); } catch (e) { return ""; }
+  const m = st.machines[mIdx]; if (!m) return "";
+  if (sim.signedPeriodicite === "T" && st.periodicite === "M") st.noMajoration = true;
+  const r = computeAll(st).rows[mIdx]; if (!r) return "";
+  const livraisonRetraitQuoted = num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait);
+  const quotedFor = { financedReal: r.financed, prixMachineReal: r.prixMachineEff, livraisonReal: livraisonRetraitQuoted, installationReal: num(m.installation) };
+  const ov = (sim.realOverrides && sim.realOverrides[mIdx]) || {};
+  return `<div class="subgrid"><h4>Marge réelle — ${esc(m.proposedModel || "machine")} (${esc(st.client.name || sim.clientName || "—")})</h4>
+    <p class="hint">Laisse un champ vide pour reprendre la valeur du simulateur. Ces montants et la marge réelle
+      qui en découle ne sont jamais visibles par les autres utilisateurs, qui continuent de voir la marge telle
+      qu'ils l'ont saisie.</p>
+    <div class="grid">
+      ${REAL_MARGIN_FIELDS.map(([k, l]) => `<label class="fld money"><span>${l} <small>(simulateur : ${eur(quotedFor[k])})</small></span>${euroWrap(`<input type="number" step="any" inputmode="decimal" id="rm-${k}" value="${esc(ov[k] !== undefined ? ov[k] : "")}" placeholder="${eur(quotedFor[k])}">`)}</label>`).join("")}
+    </div>
+    <div class="actions">
+      <button class="btn primary small" data-action="save-real-margin" data-sim="${sim.id}" data-midx="${mIdx}">Enregistrer</button>
+      <button class="btn ghost small" data-action="clear-real-margin" data-sim="${sim.id}" data-midx="${mIdx}">Effacer le markup</button>
+      <button class="btn ghost small" data-action="cancel-real-margin">Annuler</button>
+    </div>
+  </div>`;
+}
+
 function renderMargins() {
   const rows = marginRows();
   const userOptions = ADMIN
@@ -763,6 +815,15 @@ function renderMargins() {
         <select id="margins-user-select">
           <option value="">Tous les utilisateurs</option>
           ${loadUsers().map((u) => `<option value="${u.id}" ${u.id === MARGINS_USER_FILTER ? "selected" : ""}>${esc(u.name || u.username)}</option>`).join("")}
+        </select></label>`
+    : "";
+  // vue admin : marges réelles (avec markup) ou vue commercial (comme le
+  // simulateur, ce que les autres utilisateurs voient toujours).
+  const viewOptions = ADMIN
+    ? `<label class="fld"><span>Vue</span>
+        <select id="margins-view-select">
+          <option value="real" ${MARGINS_VIEW === "real" ? "selected" : ""}>Réalité (marges réelles)</option>
+          <option value="quoted" ${MARGINS_VIEW === "quoted" ? "selected" : ""}>Vue commercial (marges du simulateur)</option>
         </select></label>`
     : "";
 
@@ -805,9 +866,9 @@ function renderMargins() {
         <button class="btn ghost small" data-action="close-margins">← Retour au simulateur</button></div>
       <p class="muted small">Seules les simulations marquées « dossier signé » comptent dans ces cumuls —
         une proposition non convertie ne fausse pas les totaux.</p>
-      <div class="grid">${userOptions}${monthSelectOptions}</div>
+      <div class="grid">${userOptions}${viewOptions}${monthSelectOptions}</div>
       <div class="month-margin-tile">
-        <span>Marge de ${esc(curMonth.monthLabel)}${scopeLabel ? " — " + esc(scopeLabel) : ""}</span>
+        <span>Marge de ${esc(curMonth.monthLabel)}${scopeLabel ? " — " + esc(scopeLabel) : ""}${ADMIN ? (MARGINS_VIEW === "real" ? " · réalité" : " · vue commercial") : ""}</span>
         <b>${eur(monthTotals.marge, 0)}</b>
       </div>
       <div class="subgrid actions">
@@ -816,6 +877,12 @@ function renderMargins() {
           : `<button class="btn ghost small" data-action="open-manual-sale">＋ Ajouter une vente en saisie libre</button>`}
       </div>
       ${MANUAL_SALE_OPEN ? manualSaleForm(MANUAL_SALE_EDIT_ID ? loadSims().find((s) => s.id === MANUAL_SALE_EDIT_ID) : null) : ""}
+      ${(() => {
+        if (!REAL_EDIT_KEY || !ADMIN) return "";
+        const [rSimId, rmIdxStr] = REAL_EDIT_KEY.split("::");
+        const rSim = loadSims().find((x) => x.id === rSimId);
+        return rSim ? realMarginForm(rSim, +rmIdxStr) : "";
+      })()}
       ${rows.length ? "" : '<p class="muted">Aucun dossier signé enregistré pour l\'instant.</p>'}
     </section>
     ${rows.length ? `
@@ -823,15 +890,17 @@ function renderMargins() {
       <h2>${esc(curMonth.monthLabel)}</h2>
       ${monthRows.length ? `<div class="table-wrap"><table class="margins-table">
         <thead><tr>${ADMIN ? "<th>Commercial</th>" : ""}<th>Client</th><th>Type</th><th>Machine</th>
-          ${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}${hasManual ? "<th></th>" : ""}</tr></thead>
+          ${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}${(hasManual || ADMIN) ? "<th></th>" : ""}</tr></thead>
         <tbody>${monthRows.map((r) => `<tr>
           ${ADMIN ? `<td>${esc(r.userName)}</td>` : ""}
-          <td>${esc(r.client)}</td><td>${esc(r.type)}</td><td>${esc(r.machine)}${r.manual ? ' <span class="tag">manuel</span>' : ""}</td>
+          <td>${esc(r.client)}</td><td>${esc(r.type)}</td><td>${esc(r.machine)}${r.manual ? ' <span class="tag">manuel</span>' : ""}${r.hasOverride ? ' <span class="tag real-tag" title="Markup réel saisi">réel</span>' : ""}</td>
           ${MARGIN_COLS.map(([k]) => `<td>${eur(r[k])}</td>`).join("")}
-          ${hasManual ? `<td>${r.manual ? `<button class="btn ghost small" data-action="edit-manual-sale" data-sim="${r.simId}">✎</button> <button class="btn ghost small" data-action="del-manual-sale" data-sim="${r.simId}">✕</button>` : ""}</td>` : ""}
+          ${(hasManual || ADMIN) ? `<td>${r.manual
+            ? `<button class="btn ghost small" data-action="edit-manual-sale" data-sim="${r.simId}">✎</button> <button class="btn ghost small" data-action="del-manual-sale" data-sim="${r.simId}">✕</button>`
+            : (ADMIN ? `<button class="btn ghost small" data-action="edit-real-margin" data-sim="${r.simId}" data-midx="${r.mIdx}" title="Saisir la marge réelle">✎ réel</button>` : "")}</td>` : ""}
         </tr>`).join("")}
         <tr class="total-row"><td><b>Total</b></td>${ADMIN ? "<td></td>" : ""}<td></td><td>${monthTotals.count} vente${monthTotals.count > 1 ? "s" : ""}</td>
-          ${MARGIN_COLS.map(([k]) => `<td><b>${eur(monthTotals[k])}</b></td>`).join("")}${hasManual ? "<td></td>" : ""}
+          ${MARGIN_COLS.map(([k]) => `<td><b>${eur(monthTotals[k])}</b></td>`).join("")}${(hasManual || ADMIN) ? "<td></td>" : ""}
         </tr></tbody>
       </table></div>` : '<p class="muted small">Aucune vente ce mois-ci.</p>'}
     </section>
@@ -1101,6 +1170,11 @@ document.addEventListener("change", (e) => {
     renderMargins();
     return;
   }
+  if (t.id === "margins-view-select") {
+    MARGINS_VIEW = t.value === "quoted" ? "quoted" : "real";
+    renderMargins();
+    return;
+  }
   if (t.id === "margins-month-select") {
     const now = new Date();
     const curMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -1331,11 +1405,11 @@ document.addEventListener("click", async (e) => {
       flash("Simulation renommée.");
       break;
     }
-    case "open-manual-sale": MANUAL_SALE_OPEN = true; MANUAL_SALE_EDIT_ID = ""; renderMargins(); break;
+    case "open-manual-sale": MANUAL_SALE_OPEN = true; MANUAL_SALE_EDIT_ID = ""; REAL_EDIT_KEY = ""; renderMargins(); break;
     case "edit-manual-sale": {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
       if (!ADMIN && s.userId !== CURRENT_USER.id) break;
-      MANUAL_SALE_OPEN = true; MANUAL_SALE_EDIT_ID = s.id;
+      MANUAL_SALE_OPEN = true; MANUAL_SALE_EDIT_ID = s.id; REAL_EDIT_KEY = "";
       renderMargins();
       break;
     }
@@ -1366,6 +1440,39 @@ document.addEventListener("click", async (e) => {
       if (!confirm("Supprimer cette vente saisie manuellement ?")) break;
       await Store.removeSim(s.id);
       renderMargins();
+      break;
+    }
+    case "edit-real-margin": {
+      if (!ADMIN) break; // markup réel : réservé à l'administrateur
+      MANUAL_SALE_OPEN = false; MANUAL_SALE_EDIT_ID = "";
+      REAL_EDIT_KEY = `${btn.dataset.sim}::${btn.dataset.midx}`;
+      renderMargins();
+      break;
+    }
+    case "cancel-real-margin": REAL_EDIT_KEY = ""; renderMargins(); break;
+    case "save-real-margin": {
+      if (!ADMIN) break;
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      const mIdx = +btn.dataset.midx;
+      const ov = {};
+      REAL_MARGIN_FIELDS.forEach(([k]) => { const el = document.getElementById("rm-" + k); ov[k] = el ? el.value : ""; });
+      if (!Array.isArray(s.realOverrides)) s.realOverrides = [];
+      s.realOverrides[mIdx] = ov;
+      await Store.putSim(s);
+      REAL_EDIT_KEY = "";
+      renderMargins();
+      flash("Marge réelle enregistrée.");
+      break;
+    }
+    case "clear-real-margin": {
+      if (!ADMIN) break;
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      const mIdx = +btn.dataset.midx;
+      if (Array.isArray(s.realOverrides)) s.realOverrides[mIdx] = {};
+      await Store.putSim(s);
+      REAL_EDIT_KEY = "";
+      renderMargins();
+      flash("Markup réel effacé.");
       break;
     }
     case "sell-sim": {
