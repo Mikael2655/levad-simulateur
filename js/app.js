@@ -598,9 +598,10 @@ function renderSaved() {
     // Dossier signé : consultable par son propriétaire, mais plus modifiable
     // (contenu, statut, archivage) que par l'administrateur.
     const canModify = ADMIN || (owner && !s.sold);
+    const active = s.id === LOADED_SIM_ID;
     const who = ADMIN ? `<b>${esc(s.userName || "—")}</b> · ` : "";
-    return `<div class="sim-row${s.archived ? " arch" : ""}" title="Dernière mise à jour : ${esc(s.savedAt || "")}">
-      <span class="sim-name">${who}${esc(s.name || s.clientName || "Sans nom")}${canModify ? ` <button class="btn tiny ghost" data-action="rename-sim" data-sim="${s.id}" title="Renommer">✎</button>` : ""}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
+    return `<div class="sim-row${s.archived ? " arch" : ""}${active ? " active" : ""}" title="Dernière mise à jour : ${esc(s.savedAt || "")}">
+      <span class="sim-name">${who}${esc(s.name || s.clientName || "Sans nom")}${canModify ? ` <button class="btn tiny ghost" data-action="rename-sim" data-sim="${s.id}" title="Renommer">✎</button>` : ""}${active ? ' <span class="tag active-tag">● en cours</span>' : ""}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
         <span class="muted small">${esc(creationDateDisplay(s))}${s.sold ? " · signé le " + esc(dateShort(s.soldAt)) +
           (ADMIN ? ` <button class="btn tiny ghost" data-action="edit-sold-date" data-sim="${s.id}" title="Modifier la date de signature">✎</button>` : "") : ""}</span></span>
       <span class="sim-actions">

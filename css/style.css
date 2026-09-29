@@ -134,10 +134,14 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .sim-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); flex-wrap: wrap; }
 .sim-row.arch { opacity: .7; }
+/* Simulation actuellement chargée dans le formulaire : mise en évidence
+   pour qu'on sache toujours laquelle on est en train de consulter/modifier. */
+.sim-row.active { background: color-mix(in srgb, var(--brand) 10%, var(--field)); border-color: var(--brand); border-width: 2px; }
 .sim-name { font-size: 14px; }
 .sim-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .tag { font-size: 11px; background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 6px; }
 .tag.sold { background: var(--pos); }
+.tag.active-tag { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
 .table-wrap { overflow-x: auto; margin-top: 8px; }
 /* Les en-têtes (libellés longs) passent sur plusieurs lignes pour resserrer
    les colonnes ; seules les valeurs (dates, montants) restent sur 1 ligne. */
