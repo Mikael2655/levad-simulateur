@@ -626,6 +626,15 @@ function renderSaved() {
 const MOIS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
+/* Nom raccourci pour la colonne "Commercial" du tableau des marges : prénom
+   entier + initiale du nom, pour gagner de la place ("Mikael Obadia" -> "Mikael O."). */
+function abbrevName(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "—";
+  if (parts.length < 2) return parts[0];
+  return `${parts[0]} ${parts[1][0].toUpperCase()}.`;
+}
+
 function periodKeys(iso) {
   const parts = String(iso || "").split("-").map(Number);
   const y = parts[0], mo = parts[1];
@@ -892,8 +901,8 @@ function renderMargins() {
         <thead><tr>${ADMIN ? "<th>Commercial</th>" : ""}<th>Client</th><th>Type</th><th>Machine</th>
           ${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}${(hasManual || ADMIN) ? "<th></th>" : ""}</tr></thead>
         <tbody>${monthRows.map((r) => `<tr>
-          ${ADMIN ? `<td>${esc(r.userName)}</td>` : ""}
-          <td>${esc(r.client)}</td><td>${esc(r.type)}</td><td>${esc(r.machine)}${r.manual ? ' <span class="tag">manuel</span>' : ""}${r.hasOverride ? ' <span class="tag real-tag" title="Markup réel saisi">réel</span>' : ""}</td>
+          ${ADMIN ? `<td>${esc(abbrevName(r.userName))}</td>` : ""}
+          <td>${esc(r.client)}</td><td title="${esc(r.type)}">${r.type === "Prospect" ? "P" : "C"}</td><td>${esc(r.machine)}${r.manual ? ' <span class="tag">manuel</span>' : ""}${(r.hasOverride && ADMIN && MARGINS_VIEW === "real") ? ' <span class="tag real-tag" title="Markup réel saisi">réel</span>' : ""}</td>
           ${MARGIN_COLS.map(([k]) => `<td>${eur(r[k])}</td>`).join("")}
           ${(hasManual || ADMIN) ? `<td>${r.manual
             ? `<button class="btn ghost small" data-action="edit-manual-sale" data-sim="${r.simId}">✎</button> <button class="btn ghost small" data-action="del-manual-sale" data-sim="${r.simId}">✕</button>`
