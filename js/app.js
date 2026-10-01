@@ -23,6 +23,11 @@ let DATE_MODAL_SIM = "";      // id de la simulation dont on édite la date de s
 let LOADED_SIM_ID = "";       // id de la simulation actuellement chargée (« Charger »), "" = nouvelle saisie
 let MARGINS_VIEW = "real";    // admin : "real" (marge réelle avec markup) ou "quoted" (vue commercial, comme le simulateur)
 let REAL_EDIT_KEY = "";       // "<simId>::<mIdx>" en cours d'édition dans le formulaire marge réelle, "" = fermé
+let SHOW_PORTFOLIO = false;      // écran « Portefeuille » (propositions en cours) affiché ?
+let PORTFOLIO_USER_FILTER = "";  // admin : userId sélectionné, "" = tous
+let PORTFOLIO_MONTH_FILTER = ""; // "" = tous, "M" / "M+1" / "M+2"
+let MANUAL_DEAL_OPEN = false;    // formulaire « affaire en saisie libre » (portefeuille) ouvert ?
+let MANUAL_DEAL_EDIT_ID = "";    // id de l'affaire manuelle en cours de modification, "" = nouvelle affaire
 
 const NUM = "num", TXT = "txt";
 
@@ -34,6 +39,7 @@ async function start() {
   Store.onUpdate = () => {
     if (!CURRENT_USER) return;
     if (SHOW_MARGINS) { renderMargins(); return; }
+    if (SHOW_PORTFOLIO) { renderPortfolio(); return; }
     renderSaved(); if (ADMIN) renderUsers();
   };
   await initAuth();
@@ -61,6 +67,7 @@ function updateTopbar() {
   const out = document.getElementById("logout-btn");
   const usersBtn = document.getElementById("users-btn");
   const marginsBtn = document.getElementById("margins-btn");
+  const portfolioBtn = document.getElementById("portfolio-btn");
   if (chip) { chip.textContent = CURRENT_USER ? (CURRENT_USER.name + (CURRENT_USER.isAdmin ? " · admin" : "")) : ""; chip.hidden = !CURRENT_USER; }
   if (out) out.hidden = !CURRENT_USER;
   if (usersBtn) usersBtn.hidden = !(CURRENT_USER && ADMIN);
@@ -69,6 +76,12 @@ function updateTopbar() {
     marginsBtn.innerHTML = SHOW_MARGINS
       ? '↩ <span class="btn-label">Simulateur</span>'
       : '📊 <span class="btn-label">Marges</span>';
+  }
+  if (portfolioBtn) {
+    portfolioBtn.hidden = !CURRENT_USER;
+    portfolioBtn.innerHTML = SHOW_PORTFOLIO
+      ? '↩ <span class="btn-label">Simulateur</span>'
+      : '💼 <span class="btn-label">Portefeuille</span>';
   }
 }
 function openUsersModal() {
@@ -579,7 +592,10 @@ function creationDateDisplay(s) {
 
 function renderSaved() {
   const box = document.getElementById("saved-list"); if (!box) return;
-  let list = loadSims();
+  // Les affaires en saisie libre (ventes manuelles, affaires de portefeuille)
+  // n'ont pas d'état de simulation chargeable : elles vivent dans Marges /
+  // Portefeuille, pas dans cette liste de simulations.
+  let list = loadSims().filter((s) => !s.manual);
   if (!ADMIN) list = list.filter((s) => s.userId === CURRENT_USER.id);
   else if (SAVED_USER_FILTER) list = list.filter((s) => s.userId === SAVED_USER_FILTER);
   if (!SHOW_ARCHIVED) list = list.filter((s) => !s.archived);
@@ -917,6 +933,180 @@ function renderMargins() {
     ${periodTotalTable("Cumul année", sumRows(yearRows))}` : ""}`;
 }
 
+/* -------------------- Portefeuille (propositions en cours) --------------------
+   Une ligne par proposition active (ni signée, ni archivée) visible par
+   l'utilisateur courant (les siennes, ou toutes si admin). Les versions
+   (« … v2 », « … v3 »…) d'une même proposition sont regroupées à la suite
+   les unes des autres, triées v1 -> v2 -> v3. Inclut aussi les affaires
+   saisies librement (s.manual === true, s.sold === false). */
+function portfolioRows() {
+  let sims = loadSims().filter((s) => !s.sold && !s.archived);
+  if (!ADMIN) sims = sims.filter((s) => s.userId === CURRENT_USER.id);
+  else if (PORTFOLIO_USER_FILTER) sims = sims.filter((s) => s.userId === PORTFOLIO_USER_FILTER);
+
+  const rows = sims.map((s) => {
+    if (s.manual) {
+      return {
+        simId: s.id, manual: true, userName: s.userName || "—",
+        raisonSociale: s.clientName || "—", versionSuffix: "",
+        contact: s.contactName || "", phone: s.phone || "",
+        proposalDate: s.proposalDate || "", machine: s.machine || "—",
+        financed: num(s.financed), marge: num(s.marge),
+        estSignMonth: s.estSignMonth || "M", comment: s.portfolioComment || "",
+        checkedRaw: s.portfolioChecked, baseKey: "manual::" + s.id, versionNum: 1,
+        ts: parseSavedAt(s.savedAt),
+      };
+    }
+    let st; try { st = normalizeState(JSON.parse(JSON.stringify(s.state))); } catch (e) { return null; }
+    let financed = 0, marge = 0, machineLabel = "—";
+    if (st.simMode === "telephonie") {
+      const r = computeTelephonie(st);
+      financed = r.financed; marge = r.marge;
+      machineLabel = "Téléphonie — " + (st.telephonie.systeme === "trunk" ? "Trunk (sans appli)" : "Centrex (avec appli)");
+    } else {
+      const calc = computeAll(st);
+      financed = calc.rows.reduce((a, r) => a + r.financed, 0);
+      marge = calc.rows.reduce((a, r) => a + r.margeFinale, 0);
+      machineLabel = st.machines.map((m) => m.proposedModel).filter(Boolean).join(", ") || "—";
+    }
+    const verMatch = /\sv(\d+)$/i.exec(s.name || "");
+    const versionNum = verMatch ? parseInt(verMatch[1], 10) : 1;
+    return {
+      simId: s.id, manual: false, userName: s.userName || "—",
+      raisonSociale: st.client.name || s.clientName || "—",
+      versionSuffix: verMatch ? `v${versionNum}` : "",
+      contact: st.client.contact || "", phone: st.client.phone || "",
+      proposalDate: st.client.date || "", machine: machineLabel,
+      financed, marge,
+      estSignMonth: s.estSignMonth || "M", comment: s.portfolioComment || "",
+      checkedRaw: s.portfolioChecked, baseKey: s.userId + "::" + (baseSimName(s.name) || s.name || s.id), versionNum,
+      ts: parseSavedAt(s.savedAt),
+    };
+  }).filter(Boolean);
+
+  // Regroupe les versions d'une même proposition à la suite (v1 -> v2 -> v3…).
+  // Par défaut, seule la plus récente version d'un groupe est cochée (pour ne
+  // pas compter 2 fois la même affaire dans les totaux) — sauf si le
+  // commercial a explicitement coché/décoché une ligne, ce choix est alors
+  // mémorisé et prime sur ce comportement par défaut.
+  const groups = {};
+  rows.forEach((r) => { (groups[r.baseKey] = groups[r.baseKey] || []).push(r); });
+  const groupList = Object.values(groups).map((g) => {
+    g.sort((a, b) => a.versionNum - b.versionNum);
+    const maxVer = Math.max(...g.map((r) => r.versionNum));
+    g.forEach((r) => { r.checked = r.checkedRaw !== undefined ? !!r.checkedRaw : r.versionNum === maxVer; });
+    return { g, latestTs: Math.max(...g.map((r) => r.ts)) };
+  });
+  groupList.sort((a, b) => b.latestTs - a.latestTs);
+  const sorted = [];
+  groupList.forEach(({ g }) => sorted.push(...g));
+  return sorted;
+}
+
+const PORTFOLIO_MONTH_LABELS = { "M": "M", "M+1": "M+1", "M+2": "M+2" };
+/* Formulaire d'affaire en saisie libre (ne passe pas par le simulateur) ;
+   `deal` fourni = modification d'une affaire existante (préremplie). */
+function manualDealForm(deal) {
+  const editing = !!deal;
+  const v = (k, d) => (editing && deal[k] !== undefined && deal[k] !== null && deal[k] !== "") ? deal[k] : (d !== undefined ? d : "");
+  return `<div class="subgrid"><h4>${editing ? "Modifier l'affaire en saisie libre" : "Nouvelle affaire en saisie libre"}</h4>
+    <p class="hint">À utiliser pour suivre dans le portefeuille une affaire qui n'est pas passée par une proposition du simulateur.</p>
+    <div class="grid">
+      <label class="fld"><span>Raison sociale</span><input type="text" id="md-clientName" value="${esc(v("clientName"))}"></label>
+      <label class="fld"><span>Nom du contact</span><input type="text" id="md-contactName" value="${esc(v("contactName"))}"></label>
+      <label class="fld"><span>Téléphone</span><input type="text" id="md-phone" value="${esc(v("phone"))}"></label>
+      <label class="fld"><span>Date de proposition</span><input type="date" id="md-proposalDate" value="${esc(v("proposalDate", todayISO()))}"></label>
+      <label class="fld wide"><span>Matériel proposé</span><input type="text" id="md-machine" value="${esc(v("machine"))}"></label>
+      <label class="fld money"><span>CA (montant financé)</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" id="md-financed" value="${esc(v("financed", 0))}">`)}</label>
+      <label class="fld money"><span>Marge</span>${euroWrap(`<input type="number" step="any" inputmode="decimal" id="md-marge" value="${esc(v("marge", 0))}">`)}</label>
+      <label class="fld"><span>Date de signature estimée</span>
+        <select id="md-estSignMonth">
+          ${Object.keys(PORTFOLIO_MONTH_LABELS).map((k) => `<option value="${k}" ${v("estSignMonth", "M") === k ? "selected" : ""}>${PORTFOLIO_MONTH_LABELS[k]}</option>`).join("")}
+        </select></label>
+      <label class="fld wide"><span>Commentaire</span><input type="text" id="md-comment" value="${esc(v("portfolioComment"))}"></label>
+    </div>
+    <div class="actions">
+      <button class="btn primary small" data-action="save-manual-deal" data-sim="${editing ? deal.id : ""}">Enregistrer l'affaire</button>
+      <button class="btn ghost small" data-action="cancel-manual-deal">Annuler</button>
+    </div>
+  </div>`;
+}
+
+function renderPortfolio() {
+  const allRows = portfolioRows();
+  const rows = PORTFOLIO_MONTH_FILTER ? allRows.filter((r) => r.estSignMonth === PORTFOLIO_MONTH_FILTER) : allRows;
+  const checkedRows = rows.filter((r) => r.checked);
+  const totalCA = checkedRows.reduce((a, r) => a + r.financed, 0);
+  const totalMarge = checkedRows.reduce((a, r) => a + r.marge, 0);
+
+  const userOptions = ADMIN
+    ? `<label class="fld"><span>Utilisateur</span>
+        <select id="portfolio-user-select">
+          <option value="">Tous les utilisateurs</option>
+          ${loadUsers().map((u) => `<option value="${u.id}" ${u.id === PORTFOLIO_USER_FILTER ? "selected" : ""}>${esc(u.name || u.username)}</option>`).join("")}
+        </select></label>`
+    : "";
+  const monthOptions = `<label class="fld"><span>Signature estimée</span>
+    <select id="portfolio-month-select">
+      <option value="" ${PORTFOLIO_MONTH_FILTER === "" ? "selected" : ""}>Tous</option>
+      ${Object.keys(PORTFOLIO_MONTH_LABELS).map((k) => `<option value="${k}" ${PORTFOLIO_MONTH_FILTER === k ? "selected" : ""}>${PORTFOLIO_MONTH_LABELS[k]}</option>`).join("")}
+    </select></label>`;
+
+  document.getElementById("screen").innerHTML = `
+    <section class="card">
+      <div class="card-head"><h2>Portefeuille — propositions en cours</h2>
+        <button class="btn ghost small" data-action="close-portfolio">← Retour au simulateur</button></div>
+      <p class="muted small">Seules les propositions non signées et non archivées apparaissent ici — une fois
+        un dossier signé, il bascule dans l'onglet Marges et disparaît du portefeuille.</p>
+      <div class="grid">${userOptions}${monthOptions}</div>
+      <div class="grid portfolio-totals">
+        <div class="month-margin-tile"><span>CA total <small>(lignes cochées)</small></span><b>${eur(totalCA, 0)}</b></div>
+        <div class="month-margin-tile"><span>Marge totale <small>(lignes cochées)</small></span><b>${eur(totalMarge, 0)}</b></div>
+      </div>
+      <div class="subgrid actions">
+        ${MANUAL_DEAL_OPEN ? "" : `<button class="btn ghost small" data-action="open-manual-deal">＋ Ajouter une affaire en saisie libre</button>`}
+      </div>
+      ${MANUAL_DEAL_OPEN ? manualDealForm(MANUAL_DEAL_EDIT_ID ? loadSims().find((s) => s.id === MANUAL_DEAL_EDIT_ID) : null) : ""}
+      ${rows.length ? "" : '<p class="muted">Aucune proposition en cours pour l\'instant.</p>'}
+    </section>
+    ${rows.length ? `
+    <section class="card">
+      <div class="table-wrap"><table class="margins-table portfolio-table">
+        <thead><tr><th></th>${ADMIN ? "<th>Commercial</th>" : ""}<th>Raison sociale</th><th>Contact</th><th>Téléphone</th>
+          <th>Date proposition</th><th>Matériel proposé</th><th>CA</th><th>Marge</th><th>Signature est.</th><th>Commentaire</th><th></th></tr></thead>
+        <tbody>${rows.map((r) => `<tr>
+          <td><input type="checkbox" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioChecked" ${r.checked ? "checked" : ""}></td>
+          ${ADMIN ? `<td>${esc(abbrevName(r.userName))}</td>` : ""}
+          <td>${esc(r.raisonSociale)}${r.versionSuffix ? ` <span class="tag">${esc(r.versionSuffix)}</span>` : ""}${r.manual ? ' <span class="tag">manuel</span>' : ""}</td>
+          ${r.manual
+            ? `<td><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="contactName" value="${esc(r.contact)}"></td>`
+            : `<td>${esc(r.contact || "—")}</td>`}
+          <td><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="phone" value="${esc(r.phone)}"></td>
+          <td><input type="date" data-scope="portfolio" data-sim="${r.simId}" data-field="proposalDate" value="${esc(r.proposalDate)}"></td>
+          ${r.manual
+            ? `<td><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="machine" value="${esc(r.machine)}"></td>`
+            : `<td>${esc(r.machine)}</td>`}
+          ${r.manual
+            ? `<td>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="portfolio" data-sim="${r.simId}" data-field="financed" value="${esc(r.financed)}">`)}</td>`
+            : `<td>${eur(r.financed)}</td>`}
+          ${r.manual
+            ? `<td>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="portfolio" data-sim="${r.simId}" data-field="marge" value="${esc(r.marge)}">`)}</td>`
+            : `<td>${eur(r.marge)}</td>`}
+          <td><select data-scope="portfolio" data-sim="${r.simId}" data-field="estSignMonth">
+            ${Object.keys(PORTFOLIO_MONTH_LABELS).map((k) => `<option value="${k}" ${r.estSignMonth === k ? "selected" : ""}>${PORTFOLIO_MONTH_LABELS[k]}</option>`).join("")}
+          </select></td>
+          <td><input type="text" class="portfolio-comment" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioComment" value="${esc(r.comment)}"></td>
+          <td>${r.manual
+            ? `<button class="btn ghost small" data-action="edit-manual-deal" data-sim="${r.simId}">✎</button> <button class="btn ghost small" data-action="del-manual-deal" data-sim="${r.simId}">✕</button>`
+            : `<button class="btn ghost small" data-action="load-sim" data-sim="${r.simId}" title="Ouvrir la proposition">↗</button>`}</td>
+        </tr>`).join("")}
+        <tr class="total-row"><td></td>${ADMIN ? "<td></td>" : ""}<td colspan="2"><b>Total (lignes cochées)</b></td><td></td><td></td>
+          <td><b>${eur(totalCA)}</b></td><td><b>${eur(totalMarge)}</b></td><td></td><td></td><td></td>
+        </tr></tbody>
+      </table></div>
+    </section>` : ""}`;
+}
+
 function renderUsers() {
   const box = document.getElementById("users-list"); if (!box) return;
   const uf = (u, k, label, extra) => `<label class="fld"><span>${label}</span>
@@ -1116,7 +1306,7 @@ document.addEventListener("input", (e) => {
     return;
   }
   if (!t.dataset || !t.dataset.scope) return;
-  if (t.dataset.scope === "user") return; // édité au blur (voir "change")
+  if (t.dataset.scope === "user" || t.dataset.scope === "portfolio") return; // édité au blur/change (voir "change")
   const scope = t.dataset.scope, key = t.dataset.key;
   const val = t.type === "checkbox" ? t.checked : (t.type === "number" ? (t.value === "" ? 0 : num(t.value)) : t.value);
   if (scope === "machine") {
@@ -1159,6 +1349,24 @@ document.addEventListener("change", (e) => {
     if (CURRENT_USER && t.dataset.uid === CURRENT_USER.id) { CURRENT_USER[t.dataset.key] = t.value; if (t.dataset.key === "name") updateTopbar(); }
     return;
   }
+  if (t.dataset && t.dataset.scope === "portfolio") { // ligne du portefeuille éditée en direct (au blur/change)
+    const s = loadSims().find((x) => x.id === t.dataset.sim); if (!s) return;
+    if (!ADMIN && s.userId !== CURRENT_USER.id) return;
+    const field = t.dataset.field;
+    const val = t.type === "checkbox" ? t.checked : t.value;
+    if (field === "phone") { if (s.manual) s.phone = val; else setPath(s, "state.client.phone", val); }
+    else if (field === "proposalDate") { if (s.manual) s.proposalDate = val; else setPath(s, "state.client.date", val); }
+    else if (field === "clientName") s.clientName = val;
+    else if (field === "contactName") s.contactName = val;
+    else if (field === "machine") s.machine = val;
+    else if (field === "financed") s.financed = num(val);
+    else if (field === "marge") s.marge = num(val);
+    else if (field === "estSignMonth") s.estSignMonth = val;
+    else if (field === "portfolioComment") s.portfolioComment = val;
+    else if (field === "portfolioChecked") s.portfolioChecked = val;
+    Store.putSim(s).then(() => renderPortfolio());
+    return;
+  }
   if (t.id === "saved-user-select") {
     SAVED_USER_FILTER = t.value;
     renderSaved();
@@ -1189,6 +1397,16 @@ document.addEventListener("change", (e) => {
     const curMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     MARGINS_MONTH = t.value === curMonthKey ? "" : t.value;
     renderMargins();
+    return;
+  }
+  if (t.id === "portfolio-user-select") {
+    PORTFOLIO_USER_FILTER = t.value;
+    renderPortfolio();
+    return;
+  }
+  if (t.id === "portfolio-month-select") {
+    PORTFOLIO_MONTH_FILTER = t.value;
+    renderPortfolio();
     return;
   }
   if (t.id === "cfg-cat" || t.id === "cfg-machine") {
@@ -1305,12 +1523,24 @@ document.addEventListener("click", async (e) => {
     case "open-users": if (ADMIN) openUsersModal(); break;
     case "toggle-margins":
       SHOW_MARGINS = !SHOW_MARGINS;
+      if (SHOW_MARGINS) SHOW_PORTFOLIO = false;
       if (SHOW_MARGINS) renderMargins(); else renderApp();
       updateTopbar();
       window.scrollTo(0, 0);
       break;
     case "close-margins":
       SHOW_MARGINS = false; renderApp(); updateTopbar();
+      window.scrollTo(0, 0);
+      break;
+    case "toggle-portfolio":
+      SHOW_PORTFOLIO = !SHOW_PORTFOLIO;
+      if (SHOW_PORTFOLIO) SHOW_MARGINS = false;
+      if (SHOW_PORTFOLIO) renderPortfolio(); else renderApp();
+      updateTopbar();
+      window.scrollTo(0, 0);
+      break;
+    case "close-portfolio":
+      SHOW_PORTFOLIO = false; renderApp(); updateTopbar();
       window.scrollTo(0, 0);
       break;
     case "close-users": closeUsersModal(); break;
@@ -1397,7 +1627,8 @@ document.addEventListener("click", async (e) => {
       if (!ADMIN && s.userId !== CURRENT_USER.id) break;
       STATE = normalizeState(JSON.parse(JSON.stringify(s.state)));
       LOADED_SIM_ID = s.id;
-      saveState(STATE); renderApp(); flash("Simulation chargée.");
+      SHOW_MARGINS = false; SHOW_PORTFOLIO = false;
+      saveState(STATE); renderApp(); updateTopbar(); flash("Simulation chargée.");
       break;
     }
     case "arch-sim": case "unarch-sim": {
@@ -1449,6 +1680,49 @@ document.addEventListener("click", async (e) => {
       if (!confirm("Supprimer cette vente saisie manuellement ?")) break;
       await Store.removeSim(s.id);
       renderMargins();
+      break;
+    }
+    case "open-manual-deal": MANUAL_DEAL_OPEN = true; MANUAL_DEAL_EDIT_ID = ""; renderPortfolio(); break;
+    case "edit-manual-deal": {
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
+      MANUAL_DEAL_OPEN = true; MANUAL_DEAL_EDIT_ID = s.id;
+      renderPortfolio();
+      break;
+    }
+    case "cancel-manual-deal": MANUAL_DEAL_OPEN = false; MANUAL_DEAL_EDIT_ID = ""; renderPortfolio(); break;
+    case "save-manual-deal": {
+      const val = (id) => document.getElementById(id).value;
+      const clientName = val("md-clientName").trim();
+      if (!clientName) { alert("La raison sociale est obligatoire."); break; }
+      const editId = btn.dataset.sim;
+      const existing = editId ? loadSims().find((x) => x.id === editId) : null;
+      if (editId && (!existing || (!ADMIN && existing.userId !== CURRENT_USER.id))) break;
+      const deal = existing || {
+        id: cryptoId(), userId: CURRENT_USER.id, userName: CURRENT_USER.name, manual: true, sold: false,
+      };
+      deal.savedAt = new Date().toLocaleString("fr-FR");
+      deal.clientName = clientName;
+      deal.contactName = val("md-contactName").trim();
+      deal.phone = val("md-phone").trim();
+      deal.proposalDate = val("md-proposalDate");
+      deal.machine = val("md-machine").trim();
+      deal.financed = num(val("md-financed"));
+      deal.marge = num(val("md-marge"));
+      deal.estSignMonth = val("md-estSignMonth");
+      deal.portfolioComment = val("md-comment").trim();
+      await Store.putSim(deal);
+      MANUAL_DEAL_OPEN = false; MANUAL_DEAL_EDIT_ID = "";
+      renderPortfolio();
+      flash(existing ? "Affaire modifiée." : "Affaire ajoutée.");
+      break;
+    }
+    case "del-manual-deal": {
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      if (!ADMIN && s.userId !== CURRENT_USER.id) break;
+      if (!confirm("Supprimer cette affaire saisie manuellement ?")) break;
+      await Store.removeSim(s.id);
+      renderPortfolio();
       break;
     }
     case "edit-real-margin": {
