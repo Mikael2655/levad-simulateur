@@ -28,6 +28,9 @@ let PORTFOLIO_USER_FILTER = "";  // admin : userId sélectionné, "" = tous
 let PORTFOLIO_MONTH_FILTER = ""; // "" = tous, "M" / "M+1" / "M+2"
 let MANUAL_DEAL_OPEN = false;    // formulaire « affaire en saisie libre » (portefeuille) ouvert ?
 let MANUAL_DEAL_EDIT_ID = "";    // id de l'affaire manuelle en cours de modification, "" = nouvelle affaire
+// Intitulé de la colonne « Matériel proposé » du portefeuille : renommable (texte long mais
+// important), préférence locale au poste (pas synchronisée entre utilisateurs).
+let PORTFOLIO_MACHINE_LABEL = (() => { try { return localStorage.getItem("levad_portfolio_machine_label") || "Matériel proposé"; } catch (e) { return "Matériel proposé"; } })();
 
 const NUM = "num", TXT = "txt";
 
@@ -622,9 +625,9 @@ function renderSaved() {
     // (contenu, statut, archivage) que par l'administrateur.
     const canModify = ADMIN || (owner && !s.sold);
     const active = s.id === LOADED_SIM_ID;
-    const who = ADMIN ? `<b>${esc(s.userName || "—")}</b> · ` : "";
+    const who = ADMIN ? `${esc(s.userName || "—")} · ` : "";
     return `<div class="sim-row${s.archived ? " arch" : ""}${active ? " active" : ""}" title="Dernière mise à jour : ${esc(s.savedAt || "")}">
-      <span class="sim-name">${who}${esc(s.name || s.clientName || "Sans nom")}${canModify ? ` <button class="btn tiny ghost" data-action="rename-sim" data-sim="${s.id}" title="Renommer">✎</button>` : ""}${active ? ' <span class="tag active-tag">● en cours</span>' : ""}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
+      <span class="sim-name">${who}<b>${esc(s.name || s.clientName || "Sans nom")}</b>${canModify ? ` <button class="btn tiny ghost" data-action="rename-sim" data-sim="${s.id}" title="Renommer">✎</button>` : ""}${active ? ' <span class="tag active-tag">● en cours</span>' : ""}${s.archived ? ' <span class="tag">archivée</span>' : ""}${s.sold ? ' <span class="tag sold">dossier signé</span>' : ""}
         <span class="muted small">${esc(creationDateDisplay(s))}${s.sold ? " · signé le " + esc(dateShort(s.soldAt)) +
           (ADMIN ? ` <button class="btn tiny ghost" data-action="edit-sold-date" data-sim="${s.id}" title="Modifier la date de signature">✎</button>` : "") : ""}</span></span>
       <span class="sim-actions">
@@ -1000,9 +1003,17 @@ function portfolioRows() {
     g.sort((a, b) => a.versionNum - b.versionNum);
     const maxVer = Math.max(...g.map((r) => r.versionNum));
     g.forEach((r) => { r.checked = r.checkedRaw !== undefined ? !!r.checkedRaw : r.versionNum === maxVer; });
-    return { g, latestTs: Math.max(...g.map((r) => r.ts)) };
+    // Date d'entrée représentative du groupe : la plus récente des versions (dates ISO -> tri alphabétique = chronologique).
+    const dates = g.map((r) => r.proposalDate).filter(Boolean).sort();
+    return { g, entryDate: dates.length ? dates[dates.length - 1] : "" };
   });
-  groupList.sort((a, b) => b.latestTs - a.latestTs);
+  // Classement par date d'entrée (la plus ancienne en premier) ; les propositions sans date figurent en dernier.
+  groupList.sort((a, b) => {
+    if (!a.entryDate && !b.entryDate) return 0;
+    if (!a.entryDate) return 1;
+    if (!b.entryDate) return -1;
+    return a.entryDate.localeCompare(b.entryDate);
+  });
   const sorted = [];
   groupList.forEach(({ g }) => sorted.push(...g));
   return sorted;
@@ -1078,14 +1089,14 @@ function renderPortfolio() {
     <section class="card">
       <div class="table-wrap"><table class="margins-table portfolio-table">
         <thead><tr><th class="col-check"></th>${ADMIN ? '<th class="col-commercial">Commercial</th>' : ""}<th class="col-raison">Raison sociale</th><th class="col-contact">Contact</th><th class="col-phone">Téléphone</th>
-          <th class="col-date">Entrée</th><th class="col-machine">Matériel proposé</th><th class="col-ca">CA</th><th class="col-marge">Marge</th><th class="col-signature">Signature</th><th class="col-comment">Commentaire</th><th class="col-actions"></th></tr></thead>
+          <th class="col-date">Entrée</th><th class="col-machine" title="Matériel proposé">${esc(PORTFOLIO_MACHINE_LABEL)} <button class="btn tiny ghost" data-action="rename-machine-col" title="Renommer cette colonne">✎</button></th><th class="col-ca">CA</th><th class="col-marge">Marge</th><th class="col-signature">Signature</th><th class="col-comment">Commentaire</th><th class="col-actions"></th></tr></thead>
         <tbody>${rows.map((r) => `<tr>
           <td class="col-check"><input type="checkbox" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioChecked" ${r.checked ? "checked" : ""}></td>
           ${ADMIN ? `<td class="col-commercial">${esc(abbrevName(r.userName))}</td>` : ""}
-          <td class="col-raison">${esc(r.raisonSociale)}${r.versionSuffix ? ` <span class="tag">${esc(r.versionSuffix)}</span>` : ""}${r.manual ? ' <span class="tag">manuel</span>' : ""}</td>
-          ${r.manual
-            ? `<td class="col-contact"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="contactName" value="${esc(r.contact)}"></td>`
-            : `<td class="col-contact">${esc(r.contact || "—")}</td>`}
+          <td class="col-raison">${r.manual
+            ? esc(r.raisonSociale)
+            : `<span class="portfolio-link" data-action="load-sim" data-sim="${r.simId}" title="Ouvrir la proposition">${esc(r.raisonSociale)}</span>`}${r.versionSuffix ? ` <span class="tag">${esc(r.versionSuffix)}</span>` : ""}${r.manual ? ' <span class="tag">manuel</span>' : ""}</td>
+          <td class="col-contact"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="contactName" value="${esc(r.contact)}"></td>
           <td class="col-phone"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="phone" value="${esc(r.phone)}"></td>
           <td class="col-date"><input type="text" inputmode="numeric" placeholder="jj/mm/aa" data-scope="portfolio" data-sim="${r.simId}" data-field="proposalDate" value="${esc(isoToDMY(r.proposalDate))}"></td>
           ${r.manual
@@ -1103,7 +1114,7 @@ function renderPortfolio() {
           <td class="col-comment"><textarea class="portfolio-comment" rows="2" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioComment">${esc(r.comment)}</textarea></td>
           <td class="col-actions">${r.manual
             ? `<button class="btn ghost small" data-action="edit-manual-deal" data-sim="${r.simId}">✎</button> <button class="btn ghost small" data-action="del-manual-deal" data-sim="${r.simId}">✕</button>`
-            : `<button class="btn ghost small" data-action="load-sim" data-sim="${r.simId}" title="Ouvrir la proposition">↗</button>`}</td>
+            : ""}</td>
         </tr>`).join("")}
         <tr class="total-row"><td class="col-check"></td>${ADMIN ? '<td class="col-commercial"></td>' : ""}<td class="col-raison" colspan="2"><b>Total (lignes cochées)</b></td><td class="col-phone"></td><td class="col-date"></td><td class="col-machine"></td>
           <td class="col-ca"><b>${eur(totalCA, 0)}</b></td><td class="col-marge"><b>${eur(totalMarge, 0)}</b></td><td class="col-signature"></td><td class="col-comment"></td><td class="col-actions"></td>
@@ -1368,7 +1379,7 @@ document.addEventListener("change", (e) => {
       if (s.manual) s.proposalDate = iso; else setPath(s, "state.client.date", iso);
     }
     else if (field === "clientName") s.clientName = val;
-    else if (field === "contactName") s.contactName = val;
+    else if (field === "contactName") { if (s.manual) s.contactName = val; else setPath(s, "state.client.contact", val); }
     else if (field === "machine") s.machine = val;
     else if (field === "financed") s.financed = num(val);
     else if (field === "marge") s.marge = num(val);
@@ -1691,6 +1702,13 @@ document.addEventListener("click", async (e) => {
       if (!confirm("Supprimer cette vente saisie manuellement ?")) break;
       await Store.removeSim(s.id);
       renderMargins();
+      break;
+    }
+    case "rename-machine-col": {
+      const label = prompt("Nom de la colonne :", PORTFOLIO_MACHINE_LABEL); if (!label) break;
+      PORTFOLIO_MACHINE_LABEL = label;
+      try { localStorage.setItem("levad_portfolio_machine_label", label); } catch (e) {}
+      renderPortfolio();
       break;
     }
     case "open-manual-deal": MANUAL_DEAL_OPEN = true; MANUAL_DEAL_EDIT_ID = ""; renderPortfolio(); break;

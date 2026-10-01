@@ -177,6 +177,11 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .portfolio-table .col-comment { min-width: 240px; }
 .portfolio-comment { min-width: 230px; width: 100%; font-family: inherit; resize: vertical;
   white-space: pre-wrap; overflow-wrap: break-word; overflow: hidden; min-height: 30px; }
+/* Raison sociale cliquable : ouvre la proposition correspondante (remplace l'ancien bouton ↗). */
+.portfolio-link { color: var(--brand); cursor: pointer; text-decoration: underline; text-decoration-color: transparent;
+  transition: text-decoration-color .15s; }
+.portfolio-link:hover { text-decoration-color: var(--brand); }
+.portfolio-table th.col-machine .btn.tiny { margin-left: 2px; }
 .portfolio-totals { grid-template-columns: repeat(2, 1fr); }
 .month-margin-tile { margin-top: 14px; padding: 16px; text-align: center; background: var(--field);
   border: 1px solid var(--line); border-radius: 12px; }
