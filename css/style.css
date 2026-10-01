@@ -157,25 +157,29 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .margins-table tbody tr:hover { background: var(--field); }
 .margins-table tr.total-row td { border-top: 2px solid var(--line); border-bottom: none; }
 /* Portefeuille : colonnes modifiables en direct (téléphone, date, montants,
-   commentaire…) — champs compacts pour tenir dans la cellule du tableau. */
-.portfolio-table td { white-space: normal; vertical-align: middle; }
-.portfolio-table input, .portfolio-table select { font-size: 11px; padding: 3px 4px; width: 100%; min-width: 72px; }
-.portfolio-table input[type="checkbox"] { width: auto; min-width: 0; accent-color: var(--brand); }
-.portfolio-table .money-wrap input { padding-right: 20px; min-width: 64px; }
+   commentaire…) — champs compacts pour tenir dans la cellule du tableau.
+   table-layout: fixed + largeur explicite par colonne (sinon le layout "auto"
+   écrase nos largeurs pour redonner de la place aux colonnes à contenu court). */
+.portfolio-table { table-layout: fixed; }
+.portfolio-table td { white-space: normal; vertical-align: middle; overflow-wrap: break-word; }
+.portfolio-table input, .portfolio-table select { font-size: 11px; padding: 3px 4px; width: 100%; min-width: 0; }
+.portfolio-table input[type="checkbox"] { width: auto; accent-color: var(--brand); }
+.portfolio-table .money-wrap input { padding-right: 20px; }
 .portfolio-table .money-wrap .euro { right: 4px; font-size: 10px; }
-/* Colonnes ajustées à leur contenu pour tenir le plus de place possible sans scroll. */
-.portfolio-table .col-phone { min-width: 0; }
-.portfolio-table .col-phone input { min-width: 0; width: 86px; }
-.portfolio-table .col-date { min-width: 0; }
-.portfolio-table .col-date input { min-width: 0; width: 60px; text-align: center; }
-.portfolio-table .col-machine { width: 140px; max-width: 140px; white-space: normal; overflow-wrap: break-word; }
-.portfolio-table .col-machine input { min-width: 0; }
-.portfolio-table .col-ca, .portfolio-table .col-marge { white-space: nowrap; min-width: 78px; }
-.portfolio-table .col-ca .money-wrap input, .portfolio-table .col-marge .money-wrap input { min-width: 74px; }
-.portfolio-table .col-signature { min-width: 0; }
-.portfolio-table .col-signature select { min-width: 60px; padding: 3px 2px; }
-.portfolio-table .col-comment { min-width: 240px; }
-.portfolio-comment { min-width: 230px; width: 100%; font-family: inherit; resize: vertical;
+.portfolio-table .col-check { width: 28px; }
+.portfolio-table .col-raison { width: 150px; }
+.portfolio-table .col-contact { width: 120px; }
+.portfolio-table .col-phone { width: 88px; }
+.portfolio-table .col-date { width: 70px; }
+.portfolio-table .col-date input { text-align: center; }
+.portfolio-table .col-machine { width: 160px; }
+.portfolio-table .col-ca, .portfolio-table .col-marge { width: 76px; white-space: nowrap; }
+.portfolio-table .col-signature { width: 60px; }
+.portfolio-table .col-signature select { padding: 3px 2px; }
+.portfolio-table .col-comment { width: auto; } /* seule colonne sans largeur fixe : récupère l'espace restant */
+.portfolio-table .col-actions { width: 52px; }
+/* Contact et commentaire : zones de texte qui s'agrandissent pour toujours montrer le texte entier. */
+.portfolio-comment, .portfolio-contact { min-width: 0; width: 100%; font-family: inherit; resize: vertical;
   white-space: pre-wrap; overflow-wrap: break-word; overflow: hidden; min-height: 30px; }
 /* Raison sociale cliquable : ouvre la proposition correspondante (remplace l'ancien bouton ↗). */
 .portfolio-link { color: var(--brand); cursor: pointer; text-decoration: underline; text-decoration-color: transparent;

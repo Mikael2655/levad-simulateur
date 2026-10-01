@@ -1088,16 +1088,15 @@ function renderPortfolio() {
     ${rows.length ? `
     <section class="card">
       <div class="table-wrap"><table class="margins-table portfolio-table">
-        <thead><tr><th class="col-check"></th>${ADMIN ? '<th class="col-commercial">Commercial</th>' : ""}<th class="col-raison">Raison sociale</th><th class="col-contact">Contact</th><th class="col-phone">Téléphone</th>
+        <thead><tr><th class="col-check"></th><th class="col-raison">Raison sociale</th><th class="col-contact">Contact</th><th class="col-phone">Téléphone</th>
           <th class="col-date">Entrée</th><th class="col-machine" title="Matériel proposé">${esc(PORTFOLIO_MACHINE_LABEL)} <button class="btn tiny ghost" data-action="rename-machine-col" title="Renommer cette colonne">✎</button></th><th class="col-ca">CA</th><th class="col-marge">Marge</th><th class="col-signature">Signature</th><th class="col-comment">Commentaire</th><th class="col-actions"></th></tr></thead>
         <tbody>${rows.map((r) => `<tr>
           <td class="col-check"><input type="checkbox" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioChecked" ${r.checked ? "checked" : ""}></td>
-          ${ADMIN ? `<td class="col-commercial">${esc(abbrevName(r.userName))}</td>` : ""}
           <td class="col-raison">${r.manual
             ? esc(r.raisonSociale)
             : `<span class="portfolio-link" data-action="load-sim" data-sim="${r.simId}" title="Ouvrir la proposition">${esc(r.raisonSociale)}</span>`}${r.versionSuffix ? ` <span class="tag">${esc(r.versionSuffix)}</span>` : ""}${r.manual ? ' <span class="tag">manuel</span>' : ""}</td>
-          <td class="col-contact"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="contactName" value="${esc(r.contact)}"></td>
-          <td class="col-phone"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="phone" value="${esc(r.phone)}"></td>
+          <td class="col-contact"><textarea class="portfolio-contact portfolio-autogrow" rows="1" data-scope="portfolio" data-sim="${r.simId}" data-field="contactName">${esc(r.contact)}</textarea></td>
+          <td class="col-phone"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="phone" value="${esc((r.phone || "").replace(/\s+/g, ""))}"></td>
           <td class="col-date"><input type="text" inputmode="numeric" placeholder="jj/mm/aa" data-scope="portfolio" data-sim="${r.simId}" data-field="proposalDate" value="${esc(isoToDMY(r.proposalDate))}"></td>
           ${r.manual
             ? `<td class="col-machine"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="machine" value="${esc(r.machine)}"></td>`
@@ -1111,17 +1110,17 @@ function renderPortfolio() {
           <td class="col-signature"><select data-scope="portfolio" data-sim="${r.simId}" data-field="estSignMonth">
             ${Object.keys(PORTFOLIO_MONTH_LABELS).map((k) => `<option value="${k}" ${r.estSignMonth === k ? "selected" : ""}>${PORTFOLIO_MONTH_LABELS[k]}</option>`).join("")}
           </select></td>
-          <td class="col-comment"><textarea class="portfolio-comment" rows="2" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioComment">${esc(r.comment)}</textarea></td>
+          <td class="col-comment"><textarea class="portfolio-comment portfolio-autogrow" rows="2" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioComment">${esc(r.comment)}</textarea></td>
           <td class="col-actions">${r.manual
             ? `<button class="btn ghost small" data-action="edit-manual-deal" data-sim="${r.simId}">✎</button> <button class="btn ghost small" data-action="del-manual-deal" data-sim="${r.simId}">✕</button>`
             : ""}</td>
         </tr>`).join("")}
-        <tr class="total-row"><td class="col-check"></td>${ADMIN ? '<td class="col-commercial"></td>' : ""}<td class="col-raison" colspan="2"><b>Total (lignes cochées)</b></td><td class="col-phone"></td><td class="col-date"></td><td class="col-machine"></td>
+        <tr class="total-row"><td class="col-check"></td><td class="col-raison" colspan="2"><b>Total (lignes cochées)</b></td><td class="col-phone"></td><td class="col-date"></td><td class="col-machine"></td>
           <td class="col-ca"><b>${eur(totalCA, 0)}</b></td><td class="col-marge"><b>${eur(totalMarge, 0)}</b></td><td class="col-signature"></td><td class="col-comment"></td><td class="col-actions"></td>
         </tr></tbody>
       </table></div>
     </section>` : ""}`;
-  document.querySelectorAll("textarea.portfolio-comment").forEach(autoGrowTextarea);
+  document.querySelectorAll("textarea.portfolio-autogrow").forEach(autoGrowTextarea);
 }
 
 function renderUsers() {
@@ -1309,7 +1308,7 @@ function commit() { saveState(STATE); if (STATE.simMode === "telephonie") render
 
 document.addEventListener("input", (e) => {
   const t = e.target;
-  if (t.classList && t.classList.contains("portfolio-comment")) autoGrowTextarea(t);
+  if (t.classList && t.classList.contains("portfolio-autogrow")) autoGrowTextarea(t);
   if (t.id && t.id.startsWith("ms-") && t.id !== "ms-marge-preview") {
     const preview = document.getElementById("ms-marge-preview");
     if (preview) preview.textContent = eur(computeManualMarge(manualMarginFieldsFromDom()));
