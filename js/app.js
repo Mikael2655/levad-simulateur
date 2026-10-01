@@ -1112,8 +1112,8 @@ function renderPortfolio() {
           </select></td>
           <td class="col-comment"><textarea class="portfolio-comment portfolio-autogrow" rows="2" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioComment">${esc(r.comment)}</textarea></td>
           <td class="col-actions">${r.manual
-            ? `<button class="btn ghost small" data-action="edit-manual-deal" data-sim="${r.simId}">✎</button> <button class="btn ghost small" data-action="del-manual-deal" data-sim="${r.simId}">✕</button>`
-            : ""}</td>
+            ? `<button class="btn ghost small" data-action="edit-manual-deal" data-sim="${r.simId}" title="Modifier">✎</button> <button class="btn ghost small" data-action="arch-sim" data-sim="${r.simId}" title="Archiver (affaire mise de côté, sort du portefeuille)">🗄</button> <button class="btn ghost small" data-action="del-manual-deal" data-sim="${r.simId}" title="Supprimer définitivement">🗑</button>`
+            : `<button class="btn ghost small" data-action="arch-sim" data-sim="${r.simId}" title="Archiver (affaire perdue : sort du portefeuille)">🗄</button>${ADMIN ? ` <button class="btn ghost small" data-action="del-sim" data-sim="${r.simId}" title="Supprimer définitivement">🗑</button>` : ""}`}</td>
         </tr>`).join("")}
         <tr class="total-row"><td class="col-check"></td><td class="col-raison" colspan="2"><b>Total (lignes cochées)</b></td><td class="col-phone"></td><td class="col-date"></td><td class="col-machine"></td>
           <td class="col-ca"><b>${eur(totalCA, 0)}</b></td><td class="col-marge"><b>${eur(totalMarge, 0)}</b></td><td class="col-signature"></td><td class="col-comment"></td><td class="col-actions"></td>
@@ -1655,7 +1655,8 @@ document.addEventListener("click", async (e) => {
     case "arch-sim": case "unarch-sim": {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
       if (!ADMIN && (s.userId !== CURRENT_USER.id || s.sold)) break; // dossier signé : réservé à l'admin
-      s.archived = (a === "arch-sim"); await Store.putSim(s); renderSaved();
+      s.archived = (a === "arch-sim"); await Store.putSim(s);
+      if (SHOW_PORTFOLIO) renderPortfolio(); else renderSaved();
       break;
     }
     case "rename-sim": {
@@ -1831,7 +1832,8 @@ document.addEventListener("click", async (e) => {
     case "del-sim": {
       if (!ADMIN) break;
       if (!confirm("Supprimer définitivement cette simulation ?")) break;
-      await Store.removeSim(btn.dataset.sim); renderSaved();
+      await Store.removeSim(btn.dataset.sim);
+      if (SHOW_PORTFOLIO) renderPortfolio(); else renderSaved();
       break;
     }
     case "add-user": {

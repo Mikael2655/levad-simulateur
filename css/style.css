@@ -174,10 +174,11 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .portfolio-table .col-date input { text-align: center; }
 .portfolio-table .col-machine { width: 160px; }
 .portfolio-table .col-ca, .portfolio-table .col-marge { width: 76px; white-space: nowrap; }
-.portfolio-table .col-signature { width: 60px; }
-.portfolio-table .col-signature select { padding: 3px 2px; }
+.portfolio-table .col-signature { width: 72px; }
+.portfolio-table .col-signature select { padding: 3px 4px; font-size: 11px; }
 .portfolio-table .col-comment { width: auto; } /* seule colonne sans largeur fixe : récupère l'espace restant */
-.portfolio-table .col-actions { width: 52px; }
+.portfolio-table .col-actions { width: 76px; }
+.portfolio-table .col-actions .btn { padding: 2px 3px; font-size: 12px; }
 /* Contact et commentaire : zones de texte qui s'agrandissent pour toujours montrer le texte entier. */
 .portfolio-comment, .portfolio-contact { min-width: 0; width: 100%; font-family: inherit; resize: vertical;
   white-space: pre-wrap; overflow-wrap: break-word; overflow: hidden; min-height: 30px; }
