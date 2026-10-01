@@ -154,3 +154,18 @@ function todayISO() {
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+// "YYYY-MM-DD" -> "DD/MM/YY" (affichage compact dans les tableaux).
+function isoToDMY(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+  if (!m) return "";
+  return `${m[3]}/${m[2]}/${m[1].slice(2)}`;
+}
+// "DD/MM/YY" ou "DD/MM/YYYY" -> "YYYY-MM-DD" ; renvoie "" si non reconnu.
+function dmyToIso(str) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec((str || "").trim());
+  if (!m) return "";
+  const dd = m[1].padStart(2, "0"), mm = m[2].padStart(2, "0");
+  const yyyy = m[3].length === 2 ? `20${m[3]}` : m[3];
+  if (+mm < 1 || +mm > 12 || +dd < 1 || +dd > 31) return "";
+  return `${yyyy}-${mm}-${dd}`;
+}

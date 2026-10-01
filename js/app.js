@@ -357,6 +357,11 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+// Agrandit une zone de texte pour afficher tout son contenu sans barre de défilement.
+function autoGrowTextarea(el) {
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
 function mById(id) { return STATE.machines.find((m) => m.id === id); }
 function getPath(o, p) { return p.split(".").reduce((a, k) => (a ? a[k] : undefined), o); }
 function setPath(o, p, v) { const a = p.split("."); const l = a.pop(); a.reduce((x, k) => x[k], o)[l] = v; }
@@ -1072,39 +1077,40 @@ function renderPortfolio() {
     ${rows.length ? `
     <section class="card">
       <div class="table-wrap"><table class="margins-table portfolio-table">
-        <thead><tr><th></th>${ADMIN ? "<th>Commercial</th>" : ""}<th>Raison sociale</th><th>Contact</th><th>Téléphone</th>
-          <th>Date proposition</th><th>Matériel proposé</th><th>CA</th><th>Marge</th><th>Signature est.</th><th>Commentaire</th><th></th></tr></thead>
+        <thead><tr><th class="col-check"></th>${ADMIN ? '<th class="col-commercial">Commercial</th>' : ""}<th class="col-raison">Raison sociale</th><th class="col-contact">Contact</th><th class="col-phone">Téléphone</th>
+          <th class="col-date">Entrée</th><th class="col-machine">Matériel proposé</th><th class="col-ca">CA</th><th class="col-marge">Marge</th><th class="col-signature">Signature</th><th class="col-comment">Commentaire</th><th class="col-actions"></th></tr></thead>
         <tbody>${rows.map((r) => `<tr>
-          <td><input type="checkbox" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioChecked" ${r.checked ? "checked" : ""}></td>
-          ${ADMIN ? `<td>${esc(abbrevName(r.userName))}</td>` : ""}
-          <td>${esc(r.raisonSociale)}${r.versionSuffix ? ` <span class="tag">${esc(r.versionSuffix)}</span>` : ""}${r.manual ? ' <span class="tag">manuel</span>' : ""}</td>
+          <td class="col-check"><input type="checkbox" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioChecked" ${r.checked ? "checked" : ""}></td>
+          ${ADMIN ? `<td class="col-commercial">${esc(abbrevName(r.userName))}</td>` : ""}
+          <td class="col-raison">${esc(r.raisonSociale)}${r.versionSuffix ? ` <span class="tag">${esc(r.versionSuffix)}</span>` : ""}${r.manual ? ' <span class="tag">manuel</span>' : ""}</td>
           ${r.manual
-            ? `<td><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="contactName" value="${esc(r.contact)}"></td>`
-            : `<td>${esc(r.contact || "—")}</td>`}
-          <td><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="phone" value="${esc(r.phone)}"></td>
-          <td><input type="date" data-scope="portfolio" data-sim="${r.simId}" data-field="proposalDate" value="${esc(r.proposalDate)}"></td>
+            ? `<td class="col-contact"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="contactName" value="${esc(r.contact)}"></td>`
+            : `<td class="col-contact">${esc(r.contact || "—")}</td>`}
+          <td class="col-phone"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="phone" value="${esc(r.phone)}"></td>
+          <td class="col-date"><input type="text" inputmode="numeric" placeholder="jj/mm/aa" data-scope="portfolio" data-sim="${r.simId}" data-field="proposalDate" value="${esc(isoToDMY(r.proposalDate))}"></td>
           ${r.manual
-            ? `<td><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="machine" value="${esc(r.machine)}"></td>`
-            : `<td>${esc(r.machine)}</td>`}
+            ? `<td class="col-machine"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="machine" value="${esc(r.machine)}"></td>`
+            : `<td class="col-machine">${esc(r.machine)}</td>`}
           ${r.manual
-            ? `<td>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="portfolio" data-sim="${r.simId}" data-field="financed" value="${esc(r.financed)}">`)}</td>`
-            : `<td>${eur(r.financed)}</td>`}
+            ? `<td class="col-ca">${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="portfolio" data-sim="${r.simId}" data-field="financed" value="${esc(r.financed)}">`)}</td>`
+            : `<td class="col-ca">${eur(r.financed, 0)}</td>`}
           ${r.manual
-            ? `<td>${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="portfolio" data-sim="${r.simId}" data-field="marge" value="${esc(r.marge)}">`)}</td>`
-            : `<td>${eur(r.marge)}</td>`}
-          <td><select data-scope="portfolio" data-sim="${r.simId}" data-field="estSignMonth">
+            ? `<td class="col-marge">${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="portfolio" data-sim="${r.simId}" data-field="marge" value="${esc(r.marge)}">`)}</td>`
+            : `<td class="col-marge">${eur(r.marge, 0)}</td>`}
+          <td class="col-signature"><select data-scope="portfolio" data-sim="${r.simId}" data-field="estSignMonth">
             ${Object.keys(PORTFOLIO_MONTH_LABELS).map((k) => `<option value="${k}" ${r.estSignMonth === k ? "selected" : ""}>${PORTFOLIO_MONTH_LABELS[k]}</option>`).join("")}
           </select></td>
-          <td><input type="text" class="portfolio-comment" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioComment" value="${esc(r.comment)}"></td>
-          <td>${r.manual
+          <td class="col-comment"><textarea class="portfolio-comment" rows="2" data-scope="portfolio" data-sim="${r.simId}" data-field="portfolioComment">${esc(r.comment)}</textarea></td>
+          <td class="col-actions">${r.manual
             ? `<button class="btn ghost small" data-action="edit-manual-deal" data-sim="${r.simId}">✎</button> <button class="btn ghost small" data-action="del-manual-deal" data-sim="${r.simId}">✕</button>`
             : `<button class="btn ghost small" data-action="load-sim" data-sim="${r.simId}" title="Ouvrir la proposition">↗</button>`}</td>
         </tr>`).join("")}
-        <tr class="total-row"><td></td>${ADMIN ? "<td></td>" : ""}<td colspan="2"><b>Total (lignes cochées)</b></td><td></td><td></td>
-          <td><b>${eur(totalCA)}</b></td><td><b>${eur(totalMarge)}</b></td><td></td><td></td><td></td>
+        <tr class="total-row"><td class="col-check"></td>${ADMIN ? '<td class="col-commercial"></td>' : ""}<td class="col-raison" colspan="2"><b>Total (lignes cochées)</b></td><td class="col-phone"></td><td class="col-date"></td><td class="col-machine"></td>
+          <td class="col-ca"><b>${eur(totalCA, 0)}</b></td><td class="col-marge"><b>${eur(totalMarge, 0)}</b></td><td class="col-signature"></td><td class="col-comment"></td><td class="col-actions"></td>
         </tr></tbody>
       </table></div>
     </section>` : ""}`;
+  document.querySelectorAll("textarea.portfolio-comment").forEach(autoGrowTextarea);
 }
 
 function renderUsers() {
@@ -1292,6 +1298,7 @@ function commit() { saveState(STATE); if (STATE.simMode === "telephonie") render
 
 document.addEventListener("input", (e) => {
   const t = e.target;
+  if (t.classList && t.classList.contains("portfolio-comment")) autoGrowTextarea(t);
   if (t.id && t.id.startsWith("ms-") && t.id !== "ms-marge-preview") {
     const preview = document.getElementById("ms-marge-preview");
     if (preview) preview.textContent = eur(computeManualMarge(manualMarginFieldsFromDom()));
@@ -1355,7 +1362,11 @@ document.addEventListener("change", (e) => {
     const field = t.dataset.field;
     const val = t.type === "checkbox" ? t.checked : t.value;
     if (field === "phone") { if (s.manual) s.phone = val; else setPath(s, "state.client.phone", val); }
-    else if (field === "proposalDate") { if (s.manual) s.proposalDate = val; else setPath(s, "state.client.date", val); }
+    else if (field === "proposalDate") {
+      const iso = dmyToIso(val);
+      if (!iso) { renderPortfolio(); return; } // format non reconnu : on réaffiche la valeur précédente
+      if (s.manual) s.proposalDate = iso; else setPath(s, "state.client.date", iso);
+    }
     else if (field === "clientName") s.clientName = val;
     else if (field === "contactName") s.contactName = val;
     else if (field === "machine") s.machine = val;

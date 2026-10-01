@@ -161,10 +161,22 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .portfolio-table td { white-space: normal; vertical-align: middle; }
 .portfolio-table input, .portfolio-table select { font-size: 11px; padding: 3px 4px; width: 100%; min-width: 72px; }
 .portfolio-table input[type="checkbox"] { width: auto; min-width: 0; accent-color: var(--brand); }
-.portfolio-table input[type="date"] { min-width: 108px; }
 .portfolio-table .money-wrap input { padding-right: 20px; min-width: 64px; }
 .portfolio-table .money-wrap .euro { right: 4px; font-size: 10px; }
-.portfolio-comment { min-width: 110px; }
+/* Colonnes ajustées à leur contenu pour tenir le plus de place possible sans scroll. */
+.portfolio-table .col-phone { min-width: 0; }
+.portfolio-table .col-phone input { min-width: 0; width: 86px; }
+.portfolio-table .col-date { min-width: 0; }
+.portfolio-table .col-date input { min-width: 0; width: 60px; text-align: center; }
+.portfolio-table .col-machine { width: 140px; max-width: 140px; white-space: normal; overflow-wrap: break-word; }
+.portfolio-table .col-machine input { min-width: 0; }
+.portfolio-table .col-ca, .portfolio-table .col-marge { white-space: nowrap; min-width: 78px; }
+.portfolio-table .col-ca .money-wrap input, .portfolio-table .col-marge .money-wrap input { min-width: 74px; }
+.portfolio-table .col-signature { min-width: 0; }
+.portfolio-table .col-signature select { min-width: 60px; padding: 3px 2px; }
+.portfolio-table .col-comment { min-width: 240px; }
+.portfolio-comment { min-width: 230px; width: 100%; font-family: inherit; resize: vertical;
+  white-space: pre-wrap; overflow-wrap: break-word; overflow: hidden; min-height: 30px; }
 .portfolio-totals { grid-template-columns: repeat(2, 1fr); }
 .month-margin-tile { margin-top: 14px; padding: 16px; text-align: center; background: var(--field);
   border: 1px solid var(--line); border-radius: 12px; }
