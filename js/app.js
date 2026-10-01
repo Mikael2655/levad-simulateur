@@ -984,7 +984,9 @@ function portfolioRows() {
       raisonSociale: st.client.name || s.clientName || "—",
       versionSuffix: verMatch ? `v${versionNum}` : "",
       contact: st.client.contact || "", phone: st.client.phone || "",
-      proposalDate: st.client.date || "", machine: machineLabel,
+      // Le libellé est recalculé depuis la proposition, mais modifiable ponctuellement dans le
+      // portefeuille (ex: préciser/raccourcir) sans toucher au matériel réellement saisi dans la simulation.
+      proposalDate: st.client.date || "", machine: s.machineOverride || machineLabel,
       financed, marge,
       estSignMonth: s.estSignMonth || "M", comment: s.portfolioComment || "",
       checkedRaw: s.portfolioChecked, baseKey: s.userId + "::" + (baseSimName(s.name) || s.name || s.id), versionNum,
@@ -1098,9 +1100,7 @@ function renderPortfolio() {
           <td class="col-contact"><textarea class="portfolio-contact portfolio-autogrow" rows="1" data-scope="portfolio" data-sim="${r.simId}" data-field="contactName">${esc(r.contact)}</textarea></td>
           <td class="col-phone"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="phone" value="${esc((r.phone || "").replace(/\s+/g, ""))}"></td>
           <td class="col-date"><input type="text" inputmode="numeric" placeholder="jj/mm/aa" data-scope="portfolio" data-sim="${r.simId}" data-field="proposalDate" value="${esc(isoToDMY(r.proposalDate))}"></td>
-          ${r.manual
-            ? `<td class="col-machine"><input type="text" data-scope="portfolio" data-sim="${r.simId}" data-field="machine" value="${esc(r.machine)}"></td>`
-            : `<td class="col-machine">${esc(r.machine)}</td>`}
+          <td class="col-machine"><textarea class="portfolio-machine portfolio-autogrow" rows="1" data-scope="portfolio" data-sim="${r.simId}" data-field="machine">${esc(r.machine)}</textarea></td>
           ${r.manual
             ? `<td class="col-ca">${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="portfolio" data-sim="${r.simId}" data-field="financed" value="${esc(r.financed)}">`)}</td>`
             : `<td class="col-ca">${eur(r.financed, 0)}</td>`}
@@ -1379,7 +1379,7 @@ document.addEventListener("change", (e) => {
     }
     else if (field === "clientName") s.clientName = val;
     else if (field === "contactName") { if (s.manual) s.contactName = val; else setPath(s, "state.client.contact", val); }
-    else if (field === "machine") s.machine = val;
+    else if (field === "machine") { if (s.manual) s.machine = val; else s.machineOverride = val; }
     else if (field === "financed") s.financed = num(val);
     else if (field === "marge") s.marge = num(val);
     else if (field === "estSignMonth") s.estSignMonth = val;
