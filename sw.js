@@ -2,7 +2,7 @@
    jour), « cache d'abord » pour les gros fichiers statiques qui ne changent
    qu'à une nouvelle version (vendor/*, template PowerPoint, logo) — sinon
    ces ~7 Mo sont retéléchargés à chaque rechargement de page. */
-const CACHE = "proposition-v20";
+const CACHE = "proposition-v21";
 const CORE = [
   "./",
   "index.html",
@@ -15,12 +15,14 @@ const CORE = [
   "js/telephonie.js",
   "js/export-excel.js",
   "js/export-pptx.js",
+  "js/export-pptx-telephonie.js",
   "js/export-pdf.js",
   "js/app.js",
   "vendor/jszip.min.js",
   "vendor/exceljs.min.js",
   "vendor/jspdf.umd.min.js",
   "assets/template.pptx",
+  "assets/template-telephonie.pptx",
   "assets/logo.png",
   "assets/catalog.json",
   "manifest.webmanifest",
@@ -29,7 +31,7 @@ const CORE = [
 /* Gros fichiers statiques : servis depuis le cache s'ils y sont déjà (rapide),
    sinon récupérés sur le réseau. Une nouvelle version de ces fichiers exige
    de changer CACHE ci-dessus pour forcer un nouveau précache. */
-const CACHE_FIRST = [/^vendor\//, /^assets\/template\.pptx$/, /^assets\/logo\.png$/, /^icon\.png$/];
+const CACHE_FIRST = [/^vendor\//, /^assets\/template\.pptx$/, /^assets\/template-telephonie\.pptx$/, /^assets\/logo\.png$/, /^icon\.png$/];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

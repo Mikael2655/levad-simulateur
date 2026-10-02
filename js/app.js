@@ -544,6 +544,7 @@ function renderApp() {
     <section class="card results tel-card" id="tel-results"></section>
 
     <section class="card actions">
+      <button class="btn primary" data-action="export-pptx-telephonie">⬇︎ Powerpoint Offre Télécom</button>
       <button class="btn ghost" data-action="reset">Réinitialiser</button>
       <span id="status" class="status"></span>
     </section>` : `
@@ -1533,6 +1534,10 @@ document.addEventListener("click", async (e) => {
     case "export-pptx":
       flash("Génération du PowerPoint…");
       try { await exportPptx(STATE, computeAll(STATE)); flash("PowerPoint généré."); }
+      catch (err) { flash("Erreur PowerPoint : " + err.message, true); console.error(err); } break;
+    case "export-pptx-telephonie":
+      flash("Génération du PowerPoint…");
+      try { await exportPptxTelephonie(STATE, computeTelephonie(STATE)); flash("PowerPoint généré."); }
       catch (err) { flash("Erreur PowerPoint : " + err.message, true); console.error(err); } break;
     case "export-pdf":
       try { await exportPdf(STATE, computeAll(STATE)); flash("PDF généré."); }
