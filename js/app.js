@@ -21,7 +21,7 @@ let MANUAL_SALE_OPEN = false; // formulaire « vente en saisie libre » ouvert ?
 let MANUAL_SALE_EDIT_ID = ""; // id de la vente manuelle en cours de modification, "" = nouvelle vente
 let DATE_MODAL_SIM = "";      // id de la simulation dont on édite la date de signature
 let LOADED_SIM_ID = "";       // id de la simulation actuellement chargée (« Charger »), "" = nouvelle saisie
-let MARGINS_VIEW = "real";    // admin : "real" (marge réelle avec markup) ou "quoted" (vue commercial, comme le simulateur)
+let MARGINS_VIEW = "quoted";  // admin : "real" (Réalité, marge réelle avec markup) ou "quoted" (Simulateur, par défaut — ce que les autres utilisateurs voient toujours)
 let REAL_EDIT_KEY = "";       // "<simId>::<mIdx>" en cours d'édition dans le formulaire marge réelle, "" = fermé
 let SHOW_PORTFOLIO = false;      // écran « Portefeuille » (propositions en cours) affiché ?
 let PORTFOLIO_USER_FILTER = "";  // admin : userId sélectionné, "" = tous
@@ -856,8 +856,8 @@ function renderMargins() {
   const viewOptions = ADMIN
     ? `<label class="fld"><span>Vue</span>
         <select id="margins-view-select">
-          <option value="real" ${MARGINS_VIEW === "real" ? "selected" : ""}>Réalité (marges réelles)</option>
-          <option value="quoted" ${MARGINS_VIEW === "quoted" ? "selected" : ""}>Vue commercial (marges du simulateur)</option>
+          <option value="quoted" ${MARGINS_VIEW === "quoted" ? "selected" : ""}>Simulateur</option>
+          <option value="real" ${MARGINS_VIEW === "real" ? "selected" : ""}>Réalité</option>
         </select></label>`
     : "";
 
@@ -902,7 +902,7 @@ function renderMargins() {
         une proposition non convertie ne fausse pas les totaux.</p>
       <div class="grid">${userOptions}${viewOptions}${monthSelectOptions}</div>
       <div class="month-margin-tile">
-        <span>Marge de ${esc(curMonth.monthLabel)}${scopeLabel ? " — " + esc(scopeLabel) : ""}${ADMIN ? (MARGINS_VIEW === "real" ? " · réalité" : " · vue commercial") : ""}</span>
+        <span>Marge de ${esc(curMonth.monthLabel)}${scopeLabel ? " — " + esc(scopeLabel) : ""}${ADMIN ? (MARGINS_VIEW === "real" ? " · réalité" : " · simulateur") : ""}</span>
         <b>${eur(monthTotals.marge, 0)}</b>
       </div>
       <div class="subgrid actions">
