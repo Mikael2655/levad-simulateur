@@ -141,6 +141,8 @@ function defaultState() {
     coeffOverride: "",      // coefficient libre admin ("" = barème)
     machines: [defaultMachine()],
     simMode: "impression",  // "impression" (Canon) ou "telephonie"
+    offerType: "sasp",      // "sasp" (comparaison situation actuelle / solution proposée) ou "sp" (solution proposée seule)
+    financeMode: "location", // "location" (financement, loyer) ou "achat" (prix direct, sans financement) — pertinent seulement si offerType === "sp"
     telephonie: defaultTelephonie(),
   };
 }

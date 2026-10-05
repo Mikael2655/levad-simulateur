@@ -99,9 +99,9 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .machine-actions { display: flex; gap: 6px; }
 .machine-cols { display: flex; flex-direction: column; gap: 16px; }
 .machine-cols .col { border: 1px solid var(--line); border-radius: 10px; padding: 12px 12px 12px 14px; }
-.machine-cols .col:nth-child(1) { background: var(--sa-bg); border-left: 4px solid var(--sa-accent); }
-.machine-cols .col:nth-child(2) { background: var(--sp-bg); border-left: 4px solid var(--brand); }
-.machine-cols .col:nth-child(2) h3 { color: var(--brand); }
+.machine-cols .col-sa { background: var(--sa-bg); border-left: 4px solid var(--sa-accent); }
+.machine-cols .col-sp { background: var(--sp-bg); border-left: 4px solid var(--brand); }
+.machine-cols .col-sp h3 { color: var(--brand); }
 
 /* Simulateur Téléphonie : rouge clair, pour le distinguer visuellement de
    l'Impression (SA bleu/gris, SP vert). */

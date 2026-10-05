@@ -97,6 +97,13 @@ function financedFromLoyer(state, loyerT) {
   return best;
 }
 
+/* Formule « SP simple » + achat : vente directe, sans financement ni coefficient de
+   leasing. "Loyer proposé" devient alors "Prix proposé" — un montant unique (pas de
+   périodicité), réutilisant les mêmes champs/variables que la location pour que le
+   reste du moteur de calcul (marge, exports, portefeuille…) continue de fonctionner
+   sans changement. */
+function isAchat(state) { return state.offerType === "sp" && state.financeMode === "achat"; }
+
 function computeMachine(m, state) {
   const rachatObj = rachatMachine(m);
   const rachat = rachatObj.total;
@@ -106,9 +113,20 @@ function computeMachine(m, state) {
   const prixComplet = prixMachineEff + num(m.livraison) + num(m.portageLivraison) +
                       num(m.retrait) + num(m.portageRetrait) + num(m.installation);
   const div = perDivisor(state);
+  const achat = isAchat(state);
 
   let financed, marge, spLoyer;
-  if (m.margeMode === "loyer") {
+  if (achat) {
+    // Prix proposé : montant unique, sans coefficient ni conversion de périodicité.
+    if (m.margeMode === "loyer") {
+      financed = num(m.loyerCible);
+      marge = financed - rachat - prixComplet - num(m.cadeaux);
+    } else {
+      marge = num(m.marge);
+      financed = rachat + prixComplet + marge + num(m.cadeaux);
+    }
+    spLoyer = financed;
+  } else if (m.margeMode === "loyer") {
     // on saisit le loyer proposé (par période) -> on en déduit la marge
     const loyerT = num(m.loyerCible) * div;
     financed = financedFromLoyer(state, loyerT);
@@ -120,7 +138,7 @@ function computeMachine(m, state) {
     financed = rachat + prixComplet + marge + num(m.cadeaux);
     spLoyer = financed * effCoeff(state, financed) / 100;
   }
-  const coeffT = baseCoeff(state, financed);
+  const coeffT = achat ? 0 : baseCoeff(state, financed);
   // marge finale du dossier : la marge financée + les frais de livraison
   // facturés à part (non financés, mais qui restent du profit du dossier).
   const margeFinale = marge + num(m.fraisLivraisonFacturer);
@@ -167,7 +185,7 @@ function computeMachine(m, state) {
       maintNB: saMaintNB, maintCoul: saMaintCoul, servTotal: saServ, total: saTotal,
     },
     sp: {
-      model: m.proposedModel || "Machine proposée", fin: "Location",
+      model: m.proposedModel || "Machine proposée", fin: achat ? "Achat" : "Location",
       loyer: spLoyer, volNB: spVolNB, volCoul: spVolCoul,
       ccNB: num(m.ccNBpropose), ccCoul: num(m.ccCoulPropose),
       maintNB: spMaintNB, maintCoul: spMaintCoul, servTotal: spServ, total: spTotal,

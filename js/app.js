@@ -147,6 +147,47 @@ function closeSaveModal() {
   document.getElementById("save-modal").hidden = true;
 }
 
+/* -------------------- Nouvelle simulation : choix du type -------------------- */
+/* "+ Nouvelle" demande d'abord SA-SP ou SP simple, puis (si SP simple) Location ou
+   Achat, avant de créer la simulation vierge avec ces réglages. */
+function renderNewSimModalStep(step) {
+  const body = document.getElementById("new-sim-modal-body");
+  if (step === "finance") {
+    body.innerHTML = `
+      <p class="muted small">La solution proposée est-elle en location (financée, avec loyer) ou vendue directement (achat) ?</p>
+      <div class="actions">
+        <button class="btn primary small" data-action="new-sim-pick-finance" data-value="location">Location (financement)</button>
+        <button class="btn small" data-action="new-sim-pick-finance" data-value="achat">Achat (prix direct)</button>
+        <button class="btn ghost small" data-action="new-sim-cancel">Annuler</button>
+      </div>`;
+    return;
+  }
+  body.innerHTML = `
+    <p class="muted small">Cette simulation va-t-elle comparer la situation actuelle du client à une proposition, ou présenter uniquement la proposition ?</p>
+    <div class="actions">
+      <button class="btn primary small" data-action="new-sim-pick-type" data-value="sasp">SA-SP (comparaison)</button>
+      <button class="btn small" data-action="new-sim-pick-type" data-value="sp">SP simple (proposition seule)</button>
+      <button class="btn ghost small" data-action="new-sim-cancel">Annuler</button>
+    </div>`;
+}
+function openNewSimModal() {
+  renderNewSimModalStep("type");
+  document.getElementById("new-sim-modal").hidden = false;
+}
+function closeNewSimModal() {
+  document.getElementById("new-sim-modal").hidden = true;
+}
+function createNewSim(offerType, financeMode) {
+  const fresh = defaultState();
+  fresh.offerType = offerType; fresh.financeMode = financeMode;
+  fresh.company = {
+    ...fresh.company, repName: CURRENT_USER.name || "", repTitle: CURRENT_USER.title || "",
+    repPhone: CURRENT_USER.phone || "01 70 72 19 40", repMobile: CURRENT_USER.mobile || "",
+    repEmail: CURRENT_USER.email || "", repEmailManual: !!CURRENT_USER.email,
+  };
+  STATE = fresh; LOADED_SIM_ID = ""; saveState(STATE); renderApp(); flash("Nouvelle simulation.");
+}
+
 /* -------------------- Configurateur Canon -------------------- */
 const DEFAULT_CFG_CATEGORY = "OFFICE - SYSTEMES D'IMPRESSION COULEUR";
 const DEFAULT_CFG_MACHINE = "imageFORCE C611";
@@ -510,9 +551,22 @@ function renderApp() {
             <option value="impression" ${s.simMode !== "telephonie" ? "selected" : ""}>Impression</option>
             <option value="telephonie" ${s.simMode === "telephonie" ? "selected" : ""}>Téléphonie</option>
           </select></label>
+        ${s.simMode !== "telephonie" ? `
+        <label class="fld"><span>Formule</span>
+          <select data-scope="root" data-key="offerType">
+            <option value="sasp" ${s.offerType !== "sp" ? "selected" : ""}>SA-SP (comparaison situation actuelle / proposée)</option>
+            <option value="sp" ${s.offerType === "sp" ? "selected" : ""}>SP simple (proposition seule)</option>
+          </select></label>
+        ${s.offerType === "sp" ? `
+        <label class="fld"><span>Mode</span>
+          <select data-scope="root" data-key="financeMode">
+            <option value="location" ${s.financeMode !== "achat" ? "selected" : ""}>Location (financement)</option>
+            <option value="achat" ${s.financeMode === "achat" ? "selected" : ""}>Achat (prix direct)</option>
+          </select></label>` : ""}` : ""}
       </div>
     </section>
 
+    ${(s.simMode === "telephonie" || !isAchat(s)) ? `
     <section class="card">
       <h2>Financement</h2>
       <div class="grid">
@@ -536,7 +590,7 @@ function renderApp() {
           </select></label>
       </div>
       <div id="admin-panel"></div>
-    </section>
+    </section>` : ""}
 
     ${s.simMode === "telephonie" ? `
     <div id="telephonie"></div>
@@ -1173,6 +1227,10 @@ function svcRowsSide(m, side) {
 }
 
 function machineCard(m, i) {
+  const sasp = STATE.offerType !== "sp";
+  const achat = isAchat(STATE);
+  const loyerLabel = achat ? "Prix proposé" : `Loyer proposé ${perShort(STATE)}`;
+  const loyerCalcLabel = achat ? "Prix proposé (calculé)" : `Loyer proposé (calculé) ${perShort(STATE)}`;
   return `<div class="machine" data-mid="${m.id}">
     <div class="machine-head">
       <strong>Machine ${i + 1}</strong>
@@ -1182,7 +1240,7 @@ function machineCard(m, i) {
       </div>
     </div>
     <div class="machine-cols">
-      <div class="col">
+      ${sasp ? `<div class="col col-sa">
         <h3>Situation actuelle</h3>
         <div class="grid">${SA_MAIN.map((f) => mField(m.id, f)).join("")}</div>
         <label class="fld chk"><input type="checkbox" data-scope="machine" data-mid="${m.id}" data-key="prospect" ${m.prospect ? "checked" : ""}>
@@ -1192,9 +1250,9 @@ function machineCard(m, i) {
         <div class="subgrid"><h4>Service &amp; abonnements <small>(actuel)</small></h4>
           ${svcRowsSide(m, "sa")}
         </div>
-      </div>
-      <div class="col">
-        <h3>Solution proposée</h3>
+      </div>` : ""}
+      <div class="col col-sp">
+        <h3>${sasp ? "Solution proposée" : (achat ? "Proposition (achat)" : "Proposition")}</h3>
         <div class="grid">${mField(m.id, SP_MAIN[0])}</div>
         <div class="grid sp-price-row">${SP_MAIN.slice(1).map((f) => {
           const html = mField(m.id, f);
@@ -1211,17 +1269,17 @@ function machineCard(m, i) {
               <input type="text" data-scope="machine" data-mid="${m.id}" data-key="cadeauxLabel" value="${esc(m.cadeauxLabel)}"></label>
             <label class="fld"><span>Mode de calcul</span>
               <select data-scope="machine-sel" data-mid="${m.id}" data-key="margeMode">
-                <option value="marge" ${m.margeMode !== "loyer" ? "selected" : ""}>Marge → loyer</option>
-                <option value="loyer" ${m.margeMode === "loyer" ? "selected" : ""}>Loyer → marge</option>
+                <option value="marge" ${m.margeMode !== "loyer" ? "selected" : ""}>${achat ? "Marge → prix" : "Marge → loyer"}</option>
+                <option value="loyer" ${m.margeMode === "loyer" ? "selected" : ""}>${achat ? "Prix → marge" : "Loyer → marge"}</option>
               </select></label>
             ${m.margeMode === "loyer"
-              ? `<label class="fld money"><span>Loyer proposé ${perShort(STATE)}</span>
+              ? `<label class="fld money"><span>${loyerLabel}</span>
                    ${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="machine" data-mid="${m.id}" data-key="loyerCible" value="${esc(m.loyerCible)}">`)}</label>
                  <div class="fld"><span>Marge (calculée)</span><div class="ro" id="ro-calc-${m.id}"></div></div>`
               : `<label class="fld money"><span>Marge commerciale</span>
                    ${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="machine" data-mid="${m.id}" data-key="marge" value="${esc(m.marge)}">`)}</label>
-                 <div class="fld"><span>Loyer proposé (calculé) ${perShort(STATE)}</span><div class="ro" id="ro-calc-${m.id}"></div></div>`}
-            ${ADMIN ? `<div class="fld"><span>Coefficient leaser</span><div class="ro" id="coeff-${m.id}"></div></div>` : ""}
+                 <div class="fld"><span>${loyerCalcLabel}</span><div class="ro" id="ro-calc-${m.id}"></div></div>`}
+            ${(ADMIN && !achat) ? `<div class="fld"><span>Coefficient leaser</span><div class="ro" id="coeff-${m.id}"></div></div>` : ""}
           </div>
         </div>
         <div class="subgrid"><h4>N&B proposé</h4>
@@ -1276,13 +1334,15 @@ function renderAdmin() {
 }
 
 function renderResults() {
+  const achat = isAchat(STATE);
   STATE.machines.forEach((m) => {
     const el = document.getElementById("msum-" + m.id); if (!el) return;
     const r = computeMachine(m, STATE), div = perDivisor(STATE);
     const roR = document.getElementById("ro-rachat-" + m.id);
     if (roR) roR.textContent = eur(r.rachat);
     const roC = document.getElementById("ro-calc-" + m.id);
-    if (roC) roC.textContent = m.margeMode === "loyer" ? eur(r.margeFinale) : eur(r.spLoyerT / div);
+    // Achat : prix proposé = montant unique, jamais divisé par la périodicité (pas de loyer récurrent).
+    if (roC) roC.textContent = m.margeMode === "loyer" ? eur(r.margeFinale) : eur(achat ? r.spLoyerT : r.spLoyerT / div);
     const coeffEl = document.getElementById("coeff-" + m.id);
     if (coeffEl) coeffEl.textContent = frNum(r.coeffT, 3) + " %";
     // volumes proposés auto : reflète la valeur calculée tant qu'il n'y a pas d'override
@@ -1301,6 +1361,29 @@ function renderResults() {
   });
   const res = document.getElementById("results"); if (!res) return;
   const c = computeAll(STATE), div = c.divisor, eco = c.savingYear;
+  const sasp = STATE.offerType !== "sp";
+  if (!sasp) {
+    if (achat) {
+      // Achat : prix proposé (montant unique) et maintenance (récurrente) sont deux
+      // grandeurs de nature différente — jamais additionnées dans un même total.
+      const prixTotal = c.rows.reduce((a, r) => a + r.financed, 0);
+      res.innerHTML = `
+        <h2>Synthèse</h2>
+        <div class="totals">
+          <div class="tot big"><span>Prix proposé total</span><b>${eur(prixTotal)}</b></div>
+          <div class="tot"><span>Maintenance proposée</span><b>${eur(c.spMaintTotal / div)} <small class="unit">${perShort(STATE)}</small></b></div>
+        </div>`;
+    } else {
+      res.innerHTML = `
+        <h2>Synthèse (${perAdj(STATE)})</h2>
+        <div class="totals">
+          <div class="tot big"><span>Solution proposée</span><b>${eur(c.spTotal / div)} <small class="unit">${perShort(STATE)}</small></b>
+            <small class="tot-detail">Loyer : ${eur(c.spLoyerTotal / div)} · Maintenance : ${eur(c.spMaintTotal / div)}</small></div>
+        </div>
+        <p class="muted small">${c.durationTrim} trimestres · ${esc(STATE.leaser)}</p>`;
+    }
+    return;
+  }
   res.innerHTML = `
     <h2>Synthèse (${perAdj(STATE)})</h2>
     <div class="totals">
@@ -1505,6 +1588,11 @@ document.addEventListener("change", (e) => {
       if (t.value === "telephonie") STATE.periodiciteProposition = "M";
       saveState(STATE); renderApp(); return;
     }
+    if (t.dataset.key === "offerType" || t.dataset.key === "financeMode") {
+      // Bascule SA-SP/SP simple ou location/achat : colonne SA et bloc Financement
+      // apparaissent/disparaissent, les libellés loyer/prix changent -> rendu complet.
+      saveState(STATE); renderApp(); return;
+    }
     if (t.dataset.key === "leaser") renderAdmin();
     renderMachines(); renderResults(); // périodicité/leaser : rafraîchit les libellés
   } else if (t.dataset.scope === "machine-sel") {
@@ -1606,13 +1694,18 @@ document.addEventListener("click", async (e) => {
     case "logout": logout(); CURRENT_USER = null; ADMIN = false; STATE = null; renderLogin(); updateTopbar(); break;
     case "new-sim": {
       if (!confirm("Démarrer une nouvelle simulation vierge ? (la saisie en cours non enregistrée sera perdue)")) break;
-      const fresh = defaultState();
-      fresh.company = {
-        ...fresh.company, repName: CURRENT_USER.name || "", repTitle: CURRENT_USER.title || "",
-        repPhone: CURRENT_USER.phone || "01 70 72 19 40", repMobile: CURRENT_USER.mobile || "",
-        repEmail: CURRENT_USER.email || "", repEmailManual: !!CURRENT_USER.email,
-      };
-      STATE = fresh; LOADED_SIM_ID = ""; saveState(STATE); renderApp(); flash("Nouvelle simulation.");
+      openNewSimModal();
+      break;
+    }
+    case "new-sim-cancel": closeNewSimModal(); break;
+    case "new-sim-pick-type": {
+      const val = btn.dataset.value;
+      if (val === "sp") { renderNewSimModalStep("finance"); break; }
+      createNewSim("sasp", "location"); closeNewSimModal();
+      break;
+    }
+    case "new-sim-pick-finance": {
+      createNewSim("sp", btn.dataset.value); closeNewSimModal();
       break;
     }
     case "toggle-arch": SHOW_ARCHIVED = !SHOW_ARCHIVED; renderApp(); break;
