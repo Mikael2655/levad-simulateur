@@ -944,10 +944,18 @@ function renderMargins() {
 
 /* -------------------- Portefeuille (propositions en cours) --------------------
    Une ligne par proposition active (ni signée, ni archivée) visible par
-   l'utilisateur courant (les siennes, ou toutes si admin). Les versions
-   (« … v2 », « … v3 »…) d'une même proposition sont regroupées à la suite
-   les unes des autres, triées v1 -> v2 -> v3. Inclut aussi les affaires
+   l'utilisateur courant (les siennes, ou toutes si admin). Toutes les
+   propositions d'un même client (même raison sociale) sont regroupées à la
+   suite les unes des autres — qu'elles se distinguent par un nom se terminant
+   en « v2 », « 2 », un matériel différent ou autre chose — et seule la plus
+   récemment enregistrée est cochée par défaut. Inclut aussi les affaires
    saisies librement (s.manual === true, s.sold === false). */
+/* Clé de regroupement par client : nom normalisé (espaces + casse) pour que de
+   petites variations de saisie ("Fenwick SARL" / "fenwick sarl ") ne cassent
+   pas le regroupement. */
+function portfolioGroupKey(name) {
+  return String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
 function portfolioRows() {
   let sims = loadSims().filter((s) => !s.sold && !s.archived);
   if (!ADMIN) sims = sims.filter((s) => s.userId === CURRENT_USER.id);
@@ -962,7 +970,7 @@ function portfolioRows() {
         proposalDate: s.proposalDate || "", machine: s.machine || "—",
         financed: num(s.financed), marge: num(s.marge),
         estSignMonth: s.estSignMonth || "M", comment: s.portfolioComment || "",
-        checkedRaw: s.portfolioChecked, baseKey: "manual::" + s.id, versionNum: 1,
+        checkedRaw: s.portfolioChecked, baseKey: s.userId + "::" + portfolioGroupKey(s.clientName || s.id),
         ts: parseSavedAt(s.savedAt),
       };
     }
@@ -980,9 +988,10 @@ function portfolioRows() {
     }
     const verMatch = /\sv(\d+)$/i.exec(s.name || "");
     const versionNum = verMatch ? parseInt(verMatch[1], 10) : 1;
+    const raisonSociale = st.client.name || s.clientName || "—";
     return {
       simId: s.id, manual: false, userName: s.userName || "—",
-      raisonSociale: st.client.name || s.clientName || "—",
+      raisonSociale,
       versionSuffix: verMatch ? `v${versionNum}` : "",
       contact: st.client.contact || "", phone: st.client.phone || "",
       // Le libellé est recalculé depuis la proposition, mais modifiable ponctuellement dans le
@@ -990,22 +999,23 @@ function portfolioRows() {
       proposalDate: st.client.date || "", machine: s.machineOverride || machineLabel,
       financed, marge,
       estSignMonth: s.estSignMonth || "M", comment: s.portfolioComment || "",
-      checkedRaw: s.portfolioChecked, baseKey: s.userId + "::" + (baseSimName(s.name) || s.name || s.id), versionNum,
+      checkedRaw: s.portfolioChecked, baseKey: s.userId + "::" + portfolioGroupKey(raisonSociale), versionNum,
       ts: parseSavedAt(s.savedAt),
     };
   }).filter(Boolean);
 
-  // Regroupe les versions d'une même proposition à la suite (v1 -> v2 -> v3…).
-  // Par défaut, seule la plus récente version d'un groupe est cochée (pour ne
-  // pas compter 2 fois la même affaire dans les totaux) — sauf si le
-  // commercial a explicitement coché/décoché une ligne, ce choix est alors
-  // mémorisé et prime sur ce comportement par défaut.
+  // Regroupe toutes les propositions d'un même client à la suite, quelle que soit la façon dont
+  // elles se distinguent (nom se terminant par "v1"/"V2", par "1"/"2", matériel différent d'une
+  // simulation à l'autre…) : seul le client (raison sociale) compte pour le regroupement. Par
+  // défaut, seule la plus récemment enregistrée du groupe est cochée (pour ne pas compter 2 fois
+  // la même affaire dans les totaux) — sauf si le commercial a explicitement coché/décoché une
+  // ligne, ce choix est alors mémorisé et prime sur ce comportement par défaut.
   const groups = {};
   rows.forEach((r) => { (groups[r.baseKey] = groups[r.baseKey] || []).push(r); });
   const groupList = Object.values(groups).map((g) => {
-    g.sort((a, b) => a.versionNum - b.versionNum);
-    const maxVer = Math.max(...g.map((r) => r.versionNum));
-    g.forEach((r) => { r.checked = r.checkedRaw !== undefined ? !!r.checkedRaw : r.versionNum === maxVer; });
+    g.sort((a, b) => a.ts - b.ts);
+    const maxTs = Math.max(...g.map((r) => r.ts));
+    g.forEach((r) => { r.checked = r.checkedRaw !== undefined ? !!r.checkedRaw : r.ts === maxTs; });
     // Date d'entrée représentative du groupe : la plus récente des versions (dates ISO -> tri alphabétique = chronologique).
     const dates = g.map((r) => r.proposalDate).filter(Boolean).sort();
     return { g, entryDate: dates.length ? dates[dates.length - 1] : "" };
