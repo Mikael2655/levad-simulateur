@@ -38,6 +38,7 @@ const FIREBASE_READY = (function (c) {
 
 /* Durées proposées (en trimestres) et leur équivalent mois. */
 const DURATIONS = [
+  { trim: 8, mois: 24 },
   { trim: 12, mois: 36 },
   { trim: 13, mois: 39 },
   { trim: 16, mois: 48 },
@@ -53,6 +54,7 @@ const TRANCHES = [10000, 25000, Infinity]; // 0-10k / 10k-25k / +25k
    [tranche0, tranche1, tranche2] pour chaque durée (trimestres). */
 const BAREME = {
   GRENKE: {
+    8: [14.50, 14.50, 14.50],
     12: [9.85, 9.70, 9.65], 13: [9.35, 9.15, 9.05],
     16: [7.60, 7.45, 7.40], 17: [7.20, 7.10, 7.00],
     20: [6.30, 6.15, 6.10], 21: [6.05, 5.95, 5.85],
