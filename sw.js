@@ -2,7 +2,7 @@
    jour), « cache d'abord » pour les gros fichiers statiques qui ne changent
    qu'à une nouvelle version (vendor/*, template PowerPoint, logo) — sinon
    ces ~7 Mo sont retéléchargés à chaque rechargement de page. */
-const CACHE = "proposition-v21";
+const CACHE = "proposition-v22";
 const CORE = [
   "./",
   "index.html",
@@ -26,12 +26,18 @@ const CORE = [
   "assets/logo.png",
   "assets/catalog.json",
   "manifest.webmanifest",
-  "icon.png",
+  "icons/levad-sim-180.png",
+  "icons/levad-sim-192.png",
+  "icons/levad-sim-512.png",
+  "icons/levad-sim-512-maskable.png",
+  "icons/levad-sim-favicon-32.png",
+  "icons/levad-sim-favicon-64.png",
+  "icons/levad-sim-favicon.ico",
 ];
 /* Gros fichiers statiques : servis depuis le cache s'ils y sont déjà (rapide),
    sinon récupérés sur le réseau. Une nouvelle version de ces fichiers exige
    de changer CACHE ci-dessus pour forcer un nouveau précache. */
-const CACHE_FIRST = [/^vendor\//, /^assets\/template\.pptx$/, /^assets\/template-telephonie\.pptx$/, /^assets\/logo\.png$/, /^icon\.png$/];
+const CACHE_FIRST = [/^vendor\//, /^assets\/template\.pptx$/, /^assets\/template-telephonie\.pptx$/, /^assets\/logo\.png$/, /^icons\//];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
