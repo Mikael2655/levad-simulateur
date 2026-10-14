@@ -90,15 +90,19 @@ function monthsBetweenISO(a, b) {
 /* Trimestres restants calculés à partir de la date d'installation et de la
    durée du contrat (en trimestres) : la location est facturée en trimestres
    civils, donc le 1er loyer tombe au 1er du mois qui ouvre le prochain
-   trimestre civil à partir de la date d'installation. Le trimestre civil en
-   cours (celui d'aujourd'hui) compte encore parmi les trimestres restants. */
+   trimestre civil à partir de la date d'installation. Facturation à terme à
+   échoir : le loyer d'un trimestre est facturé dès son 1er jour, donc le
+   trimestre civil en cours (celui d'aujourd'hui) est déjà facturé et ne
+   compte plus parmi les trimestres restants — sauf si le contrat n'a pas
+   encore démarré (1er loyer dans le futur), auquel cas rien n'est encore
+   facturé et la durée complète reste due. */
 function computeTrimRestants(dateInstallation, dureeContrat, todayIso) {
   const duree = num(dureeContrat);
   if (!dateInstallation || !duree) return 0;
   const firstLoyer = nextCivilQuarterStart(dateInstallation);
   const contractEnd = addMonthsISO(firstLoyer, duree * 3);
-  const curQStart = currentCivilQuarterStart(todayIso);
-  const startQ = curQStart < firstLoyer ? firstLoyer : curQStart; // comparaison ISO = comparaison chronologique
+  const curQStart = currentCivilQuarterStart(todayIso); // comparaison ISO = comparaison chronologique
+  const startQ = curQStart < firstLoyer ? firstLoyer : addMonthsISO(curQStart, 3);
   const trimRestants = Math.round(monthsBetweenISO(startQ, contractEnd) / 3);
   return Math.max(0, trimRestants);
 }
