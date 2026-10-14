@@ -56,13 +56,66 @@ function effCoeff(state, financed) {
   return baseCoeff(state, financed) * majoFactor(state);
 }
 
+/* Trimestre civil suivant (janvier/avril/juillet/octobre), à partir duquel
+   la location est facturée. La date du 1er loyer est le 1er du mois qui
+   ouvre le prochain trimestre civil à partir de (et y compris) la date
+   d'installation. */
+function nextCivilQuarterStart(iso) {
+  if (!iso) return "";
+  const [y, mo, d] = iso.split("-").map(Number);
+  const quarterMonths = [1, 4, 7, 10];
+  for (const qm of quarterMonths) {
+    if (mo < qm || (mo === qm && d <= 1)) return `${y}-${String(qm).padStart(2, "0")}-01`;
+  }
+  return `${y + 1}-01-01`;
+}
+/* Trimestre civil en cours à une date donnée (ex. aujourd'hui). */
+function currentCivilQuarterStart(iso) {
+  if (!iso) return "";
+  const [y, mo] = iso.split("-").map(Number);
+  const qm = mo <= 3 ? 1 : mo <= 6 ? 4 : mo <= 9 ? 7 : 10;
+  return `${y}-${String(qm).padStart(2, "0")}-01`;
+}
+function addMonthsISO(iso, months) {
+  const [y, mo, d] = iso.split("-").map(Number);
+  const total = y * 12 + (mo - 1) + months;
+  const ny = Math.floor(total / 12), nmo = total % 12;
+  return `${ny}-${String(nmo + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+function monthsBetweenISO(a, b) {
+  const [ya, moa] = a.split("-").map(Number);
+  const [yb, mob] = b.split("-").map(Number);
+  return (yb * 12 + mob) - (ya * 12 + moa);
+}
+/* Trimestres restants calculés à partir de la date d'installation et de la
+   durée du contrat (en trimestres) : la location est facturée en trimestres
+   civils, donc le 1er loyer tombe au 1er du mois qui ouvre le prochain
+   trimestre civil à partir de la date d'installation. Le trimestre civil en
+   cours (celui d'aujourd'hui) compte encore parmi les trimestres restants. */
+function computeTrimRestants(dateInstallation, dureeContrat, todayIso) {
+  const duree = num(dureeContrat);
+  if (!dateInstallation || !duree) return 0;
+  const firstLoyer = nextCivilQuarterStart(dateInstallation);
+  const contractEnd = addMonthsISO(firstLoyer, duree * 3);
+  const curQStart = currentCivilQuarterStart(todayIso);
+  const startQ = curQStart < firstLoyer ? firstLoyer : curQStart; // comparaison ISO = comparaison chronologique
+  const trimRestants = Math.round(monthsBetweenISO(startQ, contractEnd) / 3);
+  return Math.max(0, trimRestants);
+}
+/* Trimestres restants effectifs : saisie manuelle, ou calculés depuis la
+   date d'installation et la durée du contrat actuel. */
+function trimRestantsEffectifs(m) {
+  if (m.trimRestantsMode === "calcule") return computeTrimRestants(m.dateInstallationActuelle, m.dureeContratActuel, todayISO());
+  return num(m.trimRestants);
+}
+
 /* Rachat du contrat actuel — isolé en 2 composantes : la location (solde des
    loyers, majoré de 10 % pour un prospect) et la maintenance (maintenance +
    abonnements, uniquement pour un prospect). */
 function rachatMachine(m) {
-  const loyer = num(m.loyerActuel), trim = num(m.trimRestants);
+  const loyer = num(m.loyerActuel), trim = trimRestantsEffectifs(m);
   const base = loyer * trim;
-  if (!m.prospect) return { location: base, maintenance: 0, total: base }; // client Levad : solde des loyers restants
+  if (!m.prospect) return { location: base, maintenance: 0, total: base, trim }; // client Levad : solde des loyers restants
   // prospect (chez un concurrent) : loyers + 10% + maintenance + abonnements.
   // Le rachat se base sur le volume le plus élevé des 2.
   const maintNB = maxVol(m.forfaitNB, m.depassNB, m.volNBreel) * num(m.ccNBactuel);
@@ -70,7 +123,7 @@ function rachatMachine(m) {
   const abos = (m.services || []).reduce((a, s) => a + num(s.sa), 0);
   const location = base * 1.10;
   const maintenance = (maintNB + maintCoul + abos) * trim;
-  return { location, maintenance, total: location + maintenance };
+  return { location, maintenance, total: location + maintenance, trim };
 }
 
 /* Montant financé déduit d'un loyer trimestriel cible (mode "loyer -> marge").
@@ -174,6 +227,7 @@ function computeMachine(m, state) {
 
   return {
     rachat, rachatLocation: rachatObj.location, rachatMaintenance: rachatObj.maintenance,
+    trimRestantsEff: rachatObj.trim,
     financed, coeffT, prixComplet, prixMachineEff, marge, margeFinale, spLoyerT: spLoyer,
     fraisLivraisonFacturer: num(m.fraisLivraisonFacturer),
     cadeaux: num(m.cadeaux), cadeauxLabel: m.cadeauxLabel || "",

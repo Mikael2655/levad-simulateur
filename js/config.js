@@ -105,7 +105,10 @@ function defaultMachine() {
     prospect: false,        // false = client Levad, true = prospect (concurrent)
     loyerActuel: 0,         // loyer trimestriel actuel (€)
     assuranceActuelle: 0,   // assurance / autre frais périodique en plus du loyer (€) — exclu du rachat
-    trimRestants: 0,        // trimestres restants sur le contrat actuel
+    trimRestants: 0,        // trimestres restants sur le contrat actuel (mode manuel)
+    trimRestantsMode: "manuel", // "manuel" = saisie directe ; "calcule" = depuis date d'installation + durée
+    dateInstallationActuelle: "", // date d'installation du contrat actuel (mode calcule)
+    dureeContratActuel: 0,  // durée du contrat actuel, en trimestres (mode calcule)
     forfaitNB: 0, depassNB: 0, volNBreel: 0, ccNBactuel: 0,
     forfaitCoul: 0, depassCoul: 0, volCoulReel: 0, ccCoulActuel: 0,
     services: defaultServices(),

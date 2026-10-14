@@ -368,7 +368,6 @@ const SA_MAIN = [
   { k: "currentModel", label: "Machine actuelle", t: TXT, wide: true },
   { k: "loyerActuel", label: "Loyer actuel / trim (€)", t: NUM },
   { k: "assuranceActuelle", label: "Assurance / autre / trim (€)", t: NUM },
-  { k: "trimRestants", label: "Trimestres restants", t: NUM },
 ];
 const SA_NB = [
   { k: "forfaitNB", label: "Forfait pages N&B engagé", t: NUM },
@@ -1242,7 +1241,21 @@ function machineCard(m, i) {
     <div class="machine-cols">
       ${sasp ? `<div class="col col-sa">
         <h3>Situation actuelle</h3>
-        <div class="grid">${SA_MAIN.map((f) => mField(m.id, f)).join("")}</div>
+        <div class="grid">${SA_MAIN.map((f) => mField(m.id, f)).join("")}
+          <label class="fld"><span>Trimestres restants — mode</span>
+            <select data-scope="machine-sel" data-mid="${m.id}" data-key="trimRestantsMode">
+              <option value="manuel" ${m.trimRestantsMode !== "calcule" ? "selected" : ""}>Saisie manuelle</option>
+              <option value="calcule" ${m.trimRestantsMode === "calcule" ? "selected" : ""}>Calcul auto (date + durée)</option>
+            </select></label>
+          ${m.trimRestantsMode === "calcule"
+            ? `<label class="fld"><span>Date d'installation</span>
+                 <input type="date" data-scope="machine" data-mid="${m.id}" data-key="dateInstallationActuelle" value="${esc(m.dateInstallationActuelle)}"></label>
+               <label class="fld"><span>Durée du contrat (trimestres)</span>
+                 <input type="number" step="1" inputmode="numeric" data-scope="machine" data-mid="${m.id}" data-key="dureeContratActuel" value="${esc(m.dureeContratActuel)}"></label>
+               <div class="fld"><span>Trimestres restants (calculé)</span><div class="ro" id="ro-trimrestants-${m.id}"></div></div>`
+            : `<label class="fld"><span>Trimestres restants</span>
+                 <input type="number" step="any" inputmode="decimal" data-scope="machine" data-mid="${m.id}" data-key="trimRestants" value="${esc(m.trimRestants)}"></label>`}
+        </div>
         <label class="fld chk"><input type="checkbox" data-scope="machine" data-mid="${m.id}" data-key="prospect" ${m.prospect ? "checked" : ""}>
           <span>Prospect (chez un concurrent)</span></label>
         <div class="subgrid"><h4>N&B</h4><div class="grid">${SA_NB.map((f) => mField(m.id, f)).join("")}</div></div>
@@ -1340,6 +1353,8 @@ function renderResults() {
     const r = computeMachine(m, STATE), div = perDivisor(STATE);
     const roR = document.getElementById("ro-rachat-" + m.id);
     if (roR) roR.textContent = eur(r.rachat);
+    const roTrim = document.getElementById("ro-trimrestants-" + m.id);
+    if (roTrim) roTrim.textContent = frNum(r.trimRestantsEff, 0);
     const roC = document.getElementById("ro-calc-" + m.id);
     // Achat : prix proposé = montant unique, jamais divisé par la périodicité (pas de loyer récurrent).
     if (roC) roC.textContent = m.margeMode === "loyer" ? eur(r.margeFinale) : eur(achat ? r.spLoyerT : r.spLoyerT / div);
