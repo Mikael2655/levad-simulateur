@@ -70,6 +70,10 @@ const LEASERS = ["GRENKE", "SOLUBAIL"];
 /* Majoration du coefficient en paiement mensuel. */
 const MAJ_MENSUEL = 1.015;
 
+/* Majoration du coefficient en cas de calage payant (alignement du 1er loyer
+   sur un trimestre civil, facturé au client). */
+const MAJ_CALAGE = 1.015;
+
 /* Mot de passe admin par défaut (modifiable une fois déverrouillé). */
 const DEFAULT_ADMIN_PASSWORD = "231912";
 
@@ -143,6 +147,7 @@ function defaultState() {
     durationTrim: 21,       // trimestres
     periodicite: "T",       // périodicité du financement ("T" = trimestre, "M" = mois) : détermine la majoration
     periodiciteProposition: "T", // périodicité de présentation de la proposition ("T"/"M") : affichage uniquement
+    calagePayant: false,    // calage payant (alignement du 1er loyer sur un trimestre civil) : majore le coefficient de 1,5 %
     coeffOverride: "",      // coefficient libre admin ("" = barème)
     machines: [defaultMachine()],
     simMode: "impression",  // "impression" (Canon) ou "telephonie"

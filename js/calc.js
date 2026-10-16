@@ -47,9 +47,14 @@ function baseCoeff(state, financed) {
 /* Majoration mensuelle applicable : normalement liée à la périodicité, mais
    peut être neutralisée (state.noMajoration) — utilisé pour recalculer la
    marge d'un dossier signé trimestriellement alors que le simulateur avait
-   été basculé en mensuel juste pour la présentation de l'offre au client. */
+   été basculé en mensuel juste pour la présentation de l'offre au client.
+   Le calage payant est une majoration indépendante, non concernée par
+   noMajoration (ce n'est pas un artefact de présentation, mais une
+   caractéristique réelle du dossier). */
 function majoFactor(state) {
-  return (state.periodicite === "M" && !state.noMajoration) ? MAJ_MENSUEL : 1;
+  let f = (state.periodicite === "M" && !state.noMajoration) ? MAJ_MENSUEL : 1;
+  if (state.calagePayant) f *= MAJ_CALAGE;
+  return f;
 }
 /* Coefficient effectif (majoré en mensuel). */
 function effCoeff(state, financed) {

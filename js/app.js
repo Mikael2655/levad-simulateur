@@ -587,6 +587,8 @@ function renderApp() {
             <option value="T" ${s.periodiciteProposition === "T" ? "selected" : ""}>Trimestrielle</option>
             <option value="M" ${s.periodiciteProposition === "M" ? "selected" : ""}>Mensuelle</option>
           </select></label>
+        <label class="fld chk"><input type="checkbox" data-scope="root" data-key="calagePayant" ${s.calagePayant ? "checked" : ""}>
+          <span>Calage payant (majore le coefficient de 1,5 %)</span></label>
       </div>
       <div id="admin-panel"></div>
     </section>` : ""}
@@ -1451,7 +1453,7 @@ document.addEventListener("input", (e) => {
     const item = arr && arr[+t.dataset.idx];
     if (item) item[t.dataset.field] = val;
   } else if (scope === "root") {
-    STATE[key] = (key === "durationTrim") ? parseInt(t.value, 10) : t.value;
+    STATE[key] = (key === "durationTrim") ? parseInt(t.value, 10) : (t.type === "checkbox" ? t.checked : t.value);
   } else if (scope === "company") {
     STATE.company[key] = val;
     if (key === "repName" && !STATE.company.repEmailManual) {
