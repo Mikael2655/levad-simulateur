@@ -118,6 +118,7 @@ function defaultMachine() {
     services: defaultServices(),
     // ---- Solution proposée (SP) ----
     proposedModel: "",
+    inSitu: false,           // "in situ" : ajoute un VR (valeur résiduelle) au rachat location
     prixMachine: 0,
     derogationMikael: 0,    // remise exceptionnelle (négative) déduite du prix machine dans les calculs
     livraison: 0, portageLivraison: 0,

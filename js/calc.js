@@ -168,7 +168,7 @@ function isAchat(state) { return state.offerType === "sp" && state.financeMode =
 
 function computeMachine(m, state) {
   const rachatObj = rachatMachine(m);
-  const rachat = rachatObj.total;
+  const baseRachat = rachatObj.total;
   // dérogation Mikael : remise exceptionnelle (généralement négative) déduite
   // du prix machine dans le calcul du montant financé.
   const prixMachineEff = num(m.prixMachine) + num(m.derogationMikael);
@@ -176,6 +176,22 @@ function computeMachine(m, state) {
                       num(m.retrait) + num(m.portageRetrait) + num(m.installation);
   const div = perDivisor(state);
   const achat = isAchat(state);
+
+  // VR (« in situ ») : valeur résiduelle = loyer actuel (SA) / coefficient leaser x 1%,
+  // ajoutée au rachat location. Le coefficient dépend lui-même de la tranche du montant
+  // financé, qui dépend du rachat : on estime donc d'abord le montant financé SANS le VR
+  // pour déterminer la tranche/le coefficient, puis on ajoute le VR au rachat (cas limite
+  // négligé : si le VR fait franchir une borne de tranche, l'écart reste minime).
+  let vr = 0;
+  if (m.inSitu && !achat) {
+    const financedForCoeff = (m.margeMode === "loyer")
+      ? financedFromLoyer(state, num(m.loyerCible) * div)
+      : baseRachat + prixComplet + num(m.marge) + num(m.cadeaux);
+    const coeffForVr = baseCoeff(state, financedForCoeff);
+    if (coeffForVr) vr = num(m.loyerActuel) * 100 / coeffForVr;
+  }
+  const rachat = baseRachat + vr;
+  const rachatLocation = rachatObj.location + vr;
 
   let financed, marge, spLoyer;
   if (achat) {
@@ -235,7 +251,7 @@ function computeMachine(m, state) {
   const spTotal = spLoyer + spMaintNB + spMaintCoul + spServ;
 
   return {
-    rachat, rachatLocation: rachatObj.location, rachatMaintenance: rachatObj.maintenance,
+    rachat, rachatLocation, rachatMaintenance: rachatObj.maintenance, vr,
     trimRestantsEff: rachatObj.trim,
     financed, coeffT, prixComplet, prixMachineEff, marge, margeFinale, spLoyerT: spLoyer,
     fraisLivraisonFacturer: num(m.fraisLivraisonFacturer),

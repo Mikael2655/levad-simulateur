@@ -1279,7 +1279,10 @@ function machineCard(m, i) {
       </div>` : ""}
       <div class="col col-sp">
         <h3>${sasp ? "Solution proposée" : (achat ? "Proposition (achat)" : "Proposition")}</h3>
-        <div class="grid">${mField(m.id, SP_MAIN[0])}</div>
+        <div class="grid">${mField(m.id, SP_MAIN[0])}
+          <label class="fld chk"><input type="checkbox" data-scope="machine" data-mid="${m.id}" data-key="inSitu" ${m.inSitu ? "checked" : ""}>
+            <span>In situ</span></label>
+        </div>
         <div class="grid sp-price-row">${SP_MAIN.slice(1).map((f) => {
           const html = mField(m.id, f);
           if (f.k !== "prixMachine") return html;
@@ -1289,6 +1292,7 @@ function machineCard(m, i) {
         <div class="subgrid"><h4>Rachat, cadeau &amp; marge</h4>
           <div class="grid">
             <div class="fld"><span>Rachat (calculé)</span><div class="ro" id="ro-rachat-${m.id}"></div></div>
+            <div class="fld"><span>VR</span><div class="ro" id="ro-vr-${m.id}"></div></div>
             <label class="fld money"><span>Cadeau / autre</span>
               ${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="machine" data-mid="${m.id}" data-key="cadeaux" value="${esc(m.cadeaux)}">`)}</label>
             <label class="fld wide"><span>Descriptif cadeau / autre</span>
@@ -1366,6 +1370,8 @@ function renderResults() {
     const r = computeMachine(m, STATE), div = perDivisor(STATE);
     const roR = document.getElementById("ro-rachat-" + m.id);
     if (roR) roR.textContent = eur(r.rachat);
+    const roVr = document.getElementById("ro-vr-" + m.id);
+    if (roVr) roVr.textContent = eur(r.vr);
     const roTrim = document.getElementById("ro-trimrestants-" + m.id);
     if (roTrim) roTrim.textContent = frNum(r.trimRestantsEff, 0);
     const roC = document.getElementById("ro-calc-" + m.id);
