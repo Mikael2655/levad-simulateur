@@ -23,6 +23,7 @@ let DATE_MODAL_SIM = "";      // id de la simulation dont on édite la date de s
 let LOADED_SIM_ID = "";       // id de la simulation actuellement chargée (« Charger »), "" = nouvelle saisie
 let MARGINS_VIEW = "quoted";  // admin : "real" (Réalité, marge réelle avec markup) ou "quoted" (Simulateur, par défaut — ce que les autres utilisateurs voient toujours)
 let REAL_EDIT_KEY = "";       // "<simId>::<mIdx>" en cours d'édition dans le formulaire marge réelle, "" = fermé
+let QUOTED_EDIT_KEY = "";     // "<simId>::<mIdx>" en cours de correction du rachat dans le simulateur (vue Simulateur), "" = fermé
 let SHOW_PORTFOLIO = false;      // écran « Portefeuille » (propositions en cours) affiché ?
 let PORTFOLIO_USER_FILTER = "";  // admin : userId sélectionné, "" = tous
 let PORTFOLIO_MONTH_FILTER = ""; // "" = tous, "M" / "M+1" / "M+2"
@@ -779,17 +780,29 @@ function marginRows() {
       const fraisLivraisonReal = has("fraisLivraisonReal") ? num(ov.fraisLivraisonReal) : r.fraisLivraisonFacturer;
       const margeReal = financedReal - rachatLocationReal - rachatMaintenanceReal - prixCessionReal - logistiqueReal - r.cadeaux + fraisLivraisonReal;
       const useReal = ADMIN && MARGINS_VIEW === "real";
+      // Montant financé corrigé côté « vue Simulateur » (visible par tous, y compris le
+      // commercial) : trop complexe à reconvertir en marge/loyer dans la simulation elle-
+      // même (le montant financé est dérivé, pas un champ brut) — affiché ici tel quel,
+      // avec la marge recalculée en conséquence pour rester cohérent.
+      const qov = (s.quotedOverrides && s.quotedOverrides[i]) || {};
+      const hasQuotedOverride = qov.financedQuoted !== undefined && qov.financedQuoted !== "" && qov.financedQuoted !== null;
+      const financedQuoted = hasQuotedOverride ? num(qov.financedQuoted) : r.financed;
+      const margeQuoted = hasQuotedOverride
+        ? financedQuoted - r.rachatLocation - r.rachatMaintenance - r.prixMachineEff - logistiqueQuoted - r.cadeaux + r.fraisLivraisonFacturer
+        : r.margeFinale;
+      const hasRachatOverride = (m.rachatLocationOverride !== "" && m.rachatLocationOverride != null)
+        || (m.rachatMaintenanceOverride !== "" && m.rachatMaintenanceOverride != null);
       rows.push({
         simId: s.id, mIdx: i, userName: s.userName || "—", date: s.soldAt || st.client.date || "", manual: false,
         client: st.client.name || s.clientName || "—",
         type: m.prospect ? "Prospect" : "Client",
         machine: m.proposedModel || "—",
-        financed: useReal ? financedReal : r.financed, livraison: useReal ? fraisLivraisonReal : r.fraisLivraisonFacturer,
+        financed: useReal ? financedReal : financedQuoted, livraison: useReal ? fraisLivraisonReal : r.fraisLivraisonFacturer,
         prixCession: useReal ? prixCessionReal : r.prixMachineEff, logistique: useReal ? logistiqueReal : logistiqueQuoted,
         rachatLocation: useReal ? rachatLocationReal : r.rachatLocation,
         rachatMaintenance: useReal ? rachatMaintenanceReal : r.rachatMaintenance,
-        marge: useReal ? margeReal : r.margeFinale,
-        hasOverride,
+        marge: useReal ? margeReal : margeQuoted,
+        hasOverride, hasQuotedOverride: hasQuotedOverride || hasRachatOverride,
       });
     });
   });
@@ -908,6 +921,45 @@ function realMarginForm(sim, mIdx) {
   </div>`;
 }
 
+/* Correction du rachat et/ou du montant financé, visible directement dans l'onglet
+   Marges — vue Simulateur (celle que voit le commercial, pas seulement l'admin en
+   vue Réalité). Le rachat est écrit directement dans le simulateur (sim.state) :
+   la correction s'applique alors partout (carte machine, exports, marges), le
+   dossier lui-même est corrigé. Le montant financé, lui, est un montant dérivé
+   (de la marge ou du loyer cible) — trop complexe à reconvertir en un champ saisi
+   dans la simulation : la correction n'est donc stockée qu'en marge de la
+   simulation (sim.quotedOverrides) et s'affiche uniquement dans ce tableau de
+   Marges, avec la marge recalculée en conséquence pour rester cohérente. */
+function quotedCorrectionForm(sim, mIdx) {
+  let st; try { st = normalizeState(JSON.parse(JSON.stringify(sim.state))); } catch (e) { return ""; }
+  const m = st.machines[mIdx]; if (!m) return "";
+  if (sim.signedPeriodicite === "T" && st.periodicite === "M") st.noMajoration = true;
+  const r = computeAll(st).rows[mIdx]; if (!r) return "";
+  const hasLoc = m.rachatLocationOverride !== "" && m.rachatLocationOverride != null;
+  const hasMaint = m.rachatMaintenanceOverride !== "" && m.rachatMaintenanceOverride != null;
+  const qov = (sim.quotedOverrides && sim.quotedOverrides[mIdx]) || {};
+  const hasFinanced = qov.financedQuoted !== undefined && qov.financedQuoted !== "" && qov.financedQuoted !== null;
+  return `<div class="subgrid"><h4>Corriger le rachat / le montant financé — ${esc(m.proposedModel || "machine")} (${esc(st.client.name || sim.clientName || "—")})</h4>
+    <p class="hint">Rachat location/maintenance : remplace le calcul automatique directement dans ce dossier (visible
+      par tous, dans la carte machine, les exports et les marges). Montant financé : affiché uniquement ici, dans
+      les Marges — n'est pas réécrit dans le simulateur (marge/loyer cible y restent inchangés).
+      Laisse un champ vide pour revenir au calcul automatique.</p>
+    <div class="grid">
+      <label class="fld money"><span>Rachat location <small>(calculé : ${eur(r.rachatLocation)})</small></span>
+        ${euroWrap(`<input type="number" step="any" inputmode="decimal" id="qr-rachatLocationOverride" value="${esc(hasLoc ? m.rachatLocationOverride : "")}" placeholder="${eur(r.rachatLocation)}">`)}</label>
+      <label class="fld money"><span>Rachat maintenance <small>(calculé : ${eur(r.rachatMaintenance)})</small></span>
+        ${euroWrap(`<input type="number" step="any" inputmode="decimal" id="qr-rachatMaintenanceOverride" value="${esc(hasMaint ? m.rachatMaintenanceOverride : "")}" placeholder="${eur(r.rachatMaintenance)}">`)}</label>
+      <label class="fld money"><span>Montant financé <small>(calculé : ${eur(r.financed)})</small></span>
+        ${euroWrap(`<input type="number" step="any" inputmode="decimal" id="qr-financedQuoted" value="${esc(hasFinanced ? qov.financedQuoted : "")}" placeholder="${eur(r.financed)}">`)}</label>
+    </div>
+    <div class="actions">
+      <button class="btn primary small" data-action="save-quoted-rachat" data-sim="${sim.id}" data-midx="${mIdx}">Enregistrer</button>
+      <button class="btn ghost small" data-action="clear-quoted-rachat" data-sim="${sim.id}" data-midx="${mIdx}">Revenir au calcul automatique</button>
+      <button class="btn ghost small" data-action="cancel-quoted-rachat">Annuler</button>
+    </div>
+  </div>`;
+}
+
 function renderMargins() {
   const rows = marginRows();
   const userOptions = ADMIN
@@ -983,6 +1035,12 @@ function renderMargins() {
         const rSim = loadSims().find((x) => x.id === rSimId);
         return rSim ? realMarginForm(rSim, +rmIdxStr) : "";
       })()}
+      ${(() => {
+        if (!QUOTED_EDIT_KEY || !ADMIN) return "";
+        const [qSimId, qmIdxStr] = QUOTED_EDIT_KEY.split("::");
+        const qSim = loadSims().find((x) => x.id === qSimId);
+        return qSim ? quotedCorrectionForm(qSim, +qmIdxStr) : "";
+      })()}
       ${rows.length ? "" : '<p class="muted">Aucun dossier signé enregistré pour l\'instant.</p>'}
     </section>
     ${rows.length ? `
@@ -993,11 +1051,13 @@ function renderMargins() {
           ${MARGIN_COLS.map(([, l]) => `<th>${l}</th>`).join("")}${(hasManual || ADMIN) ? "<th></th>" : ""}</tr></thead>
         <tbody>${monthRows.map((r) => `<tr>
           ${ADMIN ? `<td>${esc(abbrevName(r.userName))}</td>` : ""}
-          <td>${esc(r.client)}</td><td title="${esc(r.type)}">${r.type === "Prospect" ? "P" : "C"}</td><td>${esc(r.machine)}${r.manual ? ' <span class="tag">manuel</span>' : ""}${(r.hasOverride && ADMIN && MARGINS_VIEW === "real") ? ' <span class="tag real-tag" title="Markup réel saisi">réel</span>' : ""}</td>
+          <td>${esc(r.client)}</td><td title="${esc(r.type)}">${r.type === "Prospect" ? "P" : "C"}</td><td>${esc(r.machine)}${r.manual ? ' <span class="tag">manuel</span>' : ""}${(r.hasOverride && ADMIN && MARGINS_VIEW === "real") ? ' <span class="tag real-tag" title="Markup réel saisi">réel</span>' : ""}${(r.hasQuotedOverride && (!ADMIN || MARGINS_VIEW !== "real")) ? ' <span class="tag real-tag" title="Rachat et/ou montant financé corrigés">corrigé</span>' : ""}</td>
           ${MARGIN_COLS.map(([k]) => `<td>${eur(r[k])}</td>`).join("")}
           ${(hasManual || ADMIN) ? `<td>${r.manual
             ? `<button class="btn ghost small" data-action="edit-manual-sale" data-sim="${r.simId}">✎</button> <button class="btn ghost small" data-action="del-manual-sale" data-sim="${r.simId}">✕</button>`
-            : ((ADMIN && MARGINS_VIEW === "real") ? `<button class="btn ghost small" data-action="edit-real-margin" data-sim="${r.simId}" data-midx="${r.mIdx}" title="Saisir la marge réelle">✎ réel</button>` : "")}</td>` : ""}
+            : (!ADMIN ? "" : (MARGINS_VIEW === "real"
+                ? `<button class="btn ghost small" data-action="edit-real-margin" data-sim="${r.simId}" data-midx="${r.mIdx}" title="Saisir la marge réelle">✎ réel</button>`
+                : `<button class="btn ghost small" data-action="edit-quoted-rachat" data-sim="${r.simId}" data-midx="${r.mIdx}" title="Corriger le rachat ou le montant financé">✎ corriger</button>`))}</td>` : ""}
         </tr>`).join("")}
         <tr class="total-row"><td><b>Total</b></td>${ADMIN ? "<td></td>" : ""}<td></td><td>${monthTotals.count} vente${monthTotals.count > 1 ? "s" : ""}</td>
           ${MARGIN_COLS.map(([k]) => `<td><b>${eur(monthTotals[k])}</b></td>`).join("")}${(hasManual || ADMIN) ? "<td></td>" : ""}
@@ -1809,11 +1869,11 @@ document.addEventListener("click", async (e) => {
       flash("Simulation renommée.");
       break;
     }
-    case "open-manual-sale": MANUAL_SALE_OPEN = true; MANUAL_SALE_EDIT_ID = ""; REAL_EDIT_KEY = ""; renderMargins(); break;
+    case "open-manual-sale": MANUAL_SALE_OPEN = true; MANUAL_SALE_EDIT_ID = ""; REAL_EDIT_KEY = ""; QUOTED_EDIT_KEY = ""; renderMargins(); break;
     case "edit-manual-sale": {
       const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
       if (!ADMIN && s.userId !== CURRENT_USER.id) break;
-      MANUAL_SALE_OPEN = true; MANUAL_SALE_EDIT_ID = s.id; REAL_EDIT_KEY = "";
+      MANUAL_SALE_OPEN = true; MANUAL_SALE_EDIT_ID = s.id; REAL_EDIT_KEY = ""; QUOTED_EDIT_KEY = "";
       renderMargins();
       break;
     }
@@ -1898,7 +1958,7 @@ document.addEventListener("click", async (e) => {
     }
     case "edit-real-margin": {
       if (!ADMIN) break; // markup réel : réservé à l'administrateur
-      MANUAL_SALE_OPEN = false; MANUAL_SALE_EDIT_ID = "";
+      MANUAL_SALE_OPEN = false; MANUAL_SALE_EDIT_ID = ""; QUOTED_EDIT_KEY = "";
       REAL_EDIT_KEY = `${btn.dataset.sim}::${btn.dataset.midx}`;
       renderMargins();
       break;
@@ -1927,6 +1987,47 @@ document.addEventListener("click", async (e) => {
       REAL_EDIT_KEY = "";
       renderMargins();
       flash("Markup réel effacé.");
+      break;
+    }
+    case "edit-quoted-rachat": {
+      if (!ADMIN) break; // correction du simulateur : réservée à l'administrateur
+      MANUAL_SALE_OPEN = false; MANUAL_SALE_EDIT_ID = ""; REAL_EDIT_KEY = "";
+      QUOTED_EDIT_KEY = `${btn.dataset.sim}::${btn.dataset.midx}`;
+      renderMargins();
+      break;
+    }
+    case "cancel-quoted-rachat": QUOTED_EDIT_KEY = ""; renderMargins(); break;
+    case "save-quoted-rachat": {
+      if (!ADMIN) break;
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      const mIdx = +btn.dataset.midx;
+      if (!s.state || !Array.isArray(s.state.machines) || !s.state.machines[mIdx]) break;
+      const locEl = document.getElementById("qr-rachatLocationOverride");
+      const maintEl = document.getElementById("qr-rachatMaintenanceOverride");
+      const financedEl = document.getElementById("qr-financedQuoted");
+      s.state.machines[mIdx].rachatLocationOverride = locEl ? locEl.value : "";
+      s.state.machines[mIdx].rachatMaintenanceOverride = maintEl ? maintEl.value : "";
+      if (!Array.isArray(s.quotedOverrides)) s.quotedOverrides = [];
+      s.quotedOverrides[mIdx] = { financedQuoted: financedEl ? financedEl.value : "" };
+      await Store.putSim(s);
+      QUOTED_EDIT_KEY = "";
+      renderMargins();
+      flash("Correction enregistrée.");
+      break;
+    }
+    case "clear-quoted-rachat": {
+      if (!ADMIN) break;
+      const s = loadSims().find((x) => x.id === btn.dataset.sim); if (!s) break;
+      const mIdx = +btn.dataset.midx;
+      if (s.state && Array.isArray(s.state.machines) && s.state.machines[mIdx]) {
+        s.state.machines[mIdx].rachatLocationOverride = "";
+        s.state.machines[mIdx].rachatMaintenanceOverride = "";
+      }
+      if (Array.isArray(s.quotedOverrides)) s.quotedOverrides[mIdx] = {};
+      await Store.putSim(s);
+      QUOTED_EDIT_KEY = "";
+      renderMargins();
+      flash("Correction effacée, retour au calcul automatique.");
       break;
     }
     case "sell-sim": {

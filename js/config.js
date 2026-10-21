@@ -113,6 +113,8 @@ function defaultMachine() {
     trimRestantsMode: "manuel", // "manuel" = saisie directe ; "calcule" = depuis date d'installation + durée
     dateInstallationActuelle: "", // date d'installation du contrat actuel (mode calcule)
     dureeContratActuel: 0,  // durée du contrat actuel, en trimestres (mode calcule)
+    rachatLocationOverride: "",    // "" = calcul auto ; sinon remplace le rachat location calculé
+    rachatMaintenanceOverride: "", // "" = calcul auto ; sinon remplace le rachat maintenance calculé
     forfaitNB: 0, depassNB: 0, volNBreel: 0, ccNBactuel: 0,
     forfaitCoul: 0, depassCoul: 0, volCoulReel: 0, ccCoulActuel: 0,
     services: defaultServices(),

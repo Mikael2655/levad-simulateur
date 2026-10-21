@@ -120,18 +120,29 @@ function trimRestantsEffectifs(m) {
 
 /* Rachat du contrat actuel — isolé en 2 composantes : la location (solde des
    loyers, majoré de 10 % pour un prospect) et la maintenance (maintenance +
-   abonnements, uniquement pour un prospect). */
+   abonnements, uniquement pour un prospect). Chaque composante peut être
+   remplacée directement (rachatLocationOverride / rachatMaintenanceOverride,
+   "" = calcul automatique) quand la formule s'avère légèrement différente de
+   la réalité du dossier — la correction s'applique alors partout (carte
+   machine, exports, marges), pas seulement en vue Réalité admin. */
 function rachatMachine(m) {
   const loyer = num(m.loyerActuel), trim = trimRestantsEffectifs(m);
   const base = loyer * trim;
-  if (!m.prospect) return { location: base, maintenance: 0, total: base, trim }; // client Levad : solde des loyers restants
-  // prospect (chez un concurrent) : loyers + 10% + maintenance + abonnements.
-  // Le rachat se base sur le volume le plus élevé des 2.
-  const maintNB = maxVol(m.forfaitNB, m.depassNB, m.volNBreel) * num(m.ccNBactuel);
-  const maintCoul = maxVol(m.forfaitCoul, m.depassCoul, m.volCoulReel) * num(m.ccCoulActuel);
-  const abos = (m.services || []).reduce((a, s) => a + num(s.sa), 0);
-  const location = base * 1.10;
-  const maintenance = (maintNB + maintCoul + abos) * trim;
+  let location, maintenance;
+  if (!m.prospect) { location = base; maintenance = 0; } // client Levad : solde des loyers restants
+  else {
+    // prospect (chez un concurrent) : loyers + 10% + maintenance + abonnements.
+    // Le rachat se base sur le volume le plus élevé des 2.
+    const maintNB = maxVol(m.forfaitNB, m.depassNB, m.volNBreel) * num(m.ccNBactuel);
+    const maintCoul = maxVol(m.forfaitCoul, m.depassCoul, m.volCoulReel) * num(m.ccCoulActuel);
+    const abos = (m.services || []).reduce((a, s) => a + num(s.sa), 0);
+    location = base * 1.10;
+    maintenance = (maintNB + maintCoul + abos) * trim;
+  }
+  const hasLocOv = m.rachatLocationOverride !== "" && m.rachatLocationOverride != null && m.rachatLocationOverride !== undefined;
+  const hasMaintOv = m.rachatMaintenanceOverride !== "" && m.rachatMaintenanceOverride != null && m.rachatMaintenanceOverride !== undefined;
+  if (hasLocOv) location = num(m.rachatLocationOverride);
+  if (hasMaintOv) maintenance = num(m.rachatMaintenanceOverride);
   return { location, maintenance, total: location + maintenance, trim };
 }
 
