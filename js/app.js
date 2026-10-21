@@ -768,22 +768,26 @@ function marginRows() {
       // qui doit toujours voir exactement la marge saisie dans le simulateur.
       const ov = (s.realOverrides && s.realOverrides[i]) || {};
       const has = (k) => ov[k] !== undefined && ov[k] !== "" && ov[k] !== null;
-      const hasOverride = ["financedReal", "prixMachineReal", "livraisonReal", "installationReal"].some(has);
+      const hasOverride = REAL_MARGIN_FIELDS.some(([k]) => has(k));
       const livraisonRetraitQuoted = num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait);
       const financedReal = has("financedReal") ? num(ov.financedReal) : r.financed;
       const prixCessionReal = has("prixMachineReal") ? num(ov.prixMachineReal) : r.prixMachineEff;
       const logistiqueReal = (has("livraisonReal") ? num(ov.livraisonReal) : livraisonRetraitQuoted)
         + (has("installationReal") ? num(ov.installationReal) : num(m.installation));
-      const margeReal = financedReal - r.rachatLocation - r.rachatMaintenance - prixCessionReal - logistiqueReal - r.cadeaux + r.fraisLivraisonFacturer;
+      const rachatLocationReal = has("rachatLocationReal") ? num(ov.rachatLocationReal) : r.rachatLocation;
+      const rachatMaintenanceReal = has("rachatMaintenanceReal") ? num(ov.rachatMaintenanceReal) : r.rachatMaintenance;
+      const fraisLivraisonReal = has("fraisLivraisonReal") ? num(ov.fraisLivraisonReal) : r.fraisLivraisonFacturer;
+      const margeReal = financedReal - rachatLocationReal - rachatMaintenanceReal - prixCessionReal - logistiqueReal - r.cadeaux + fraisLivraisonReal;
       const useReal = ADMIN && MARGINS_VIEW === "real";
       rows.push({
         simId: s.id, mIdx: i, userName: s.userName || "—", date: s.soldAt || st.client.date || "", manual: false,
         client: st.client.name || s.clientName || "—",
         type: m.prospect ? "Prospect" : "Client",
         machine: m.proposedModel || "—",
-        financed: useReal ? financedReal : r.financed, livraison: r.fraisLivraisonFacturer,
+        financed: useReal ? financedReal : r.financed, livraison: useReal ? fraisLivraisonReal : r.fraisLivraisonFacturer,
         prixCession: useReal ? prixCessionReal : r.prixMachineEff, logistique: useReal ? logistiqueReal : logistiqueQuoted,
-        rachatLocation: r.rachatLocation, rachatMaintenance: r.rachatMaintenance,
+        rachatLocation: useReal ? rachatLocationReal : r.rachatLocation,
+        rachatMaintenance: useReal ? rachatMaintenanceReal : r.rachatMaintenance,
         marge: useReal ? margeReal : r.margeFinale,
         hasOverride,
       });
@@ -867,9 +871,12 @@ function manualSaleForm(sale) {
    pour un non-admin. */
 const REAL_MARGIN_FIELDS = [
   ["financedReal", "Montant financé réel (leasing)"],
+  ["fraisLivraisonReal", "Frais de livraison facturés réels"],
   ["prixMachineReal", "Prix d'achat machine réel"],
   ["livraisonReal", "Livraison / retrait réels"],
   ["installationReal", "Installation réelle"],
+  ["rachatLocationReal", "Rachat location réel"],
+  ["rachatMaintenanceReal", "Rachat maintenance réel"],
 ];
 /* Formulaire de saisie de la marge réelle d'une machine d'un dossier signé
    (admin uniquement). `sim` = simulation enregistrée, `mIdx` = index de la
@@ -880,7 +887,11 @@ function realMarginForm(sim, mIdx) {
   if (sim.signedPeriodicite === "T" && st.periodicite === "M") st.noMajoration = true;
   const r = computeAll(st).rows[mIdx]; if (!r) return "";
   const livraisonRetraitQuoted = num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait);
-  const quotedFor = { financedReal: r.financed, prixMachineReal: r.prixMachineEff, livraisonReal: livraisonRetraitQuoted, installationReal: num(m.installation) };
+  const quotedFor = {
+    financedReal: r.financed, fraisLivraisonReal: r.fraisLivraisonFacturer,
+    prixMachineReal: r.prixMachineEff, livraisonReal: livraisonRetraitQuoted, installationReal: num(m.installation),
+    rachatLocationReal: r.rachatLocation, rachatMaintenanceReal: r.rachatMaintenance,
+  };
   const ov = (sim.realOverrides && sim.realOverrides[mIdx]) || {};
   return `<div class="subgrid"><h4>Marge réelle — ${esc(m.proposedModel || "machine")} (${esc(st.client.name || sim.clientName || "—")})</h4>
     <p class="hint">Laisse un champ vide pour reprendre la valeur du simulateur. Ces montants et la marge réelle
@@ -986,7 +997,7 @@ function renderMargins() {
           ${MARGIN_COLS.map(([k]) => `<td>${eur(r[k])}</td>`).join("")}
           ${(hasManual || ADMIN) ? `<td>${r.manual
             ? `<button class="btn ghost small" data-action="edit-manual-sale" data-sim="${r.simId}">✎</button> <button class="btn ghost small" data-action="del-manual-sale" data-sim="${r.simId}">✕</button>`
-            : (ADMIN ? `<button class="btn ghost small" data-action="edit-real-margin" data-sim="${r.simId}" data-midx="${r.mIdx}" title="Saisir la marge réelle">✎ réel</button>` : "")}</td>` : ""}
+            : ((ADMIN && MARGINS_VIEW === "real") ? `<button class="btn ghost small" data-action="edit-real-margin" data-sim="${r.simId}" data-midx="${r.mIdx}" title="Saisir la marge réelle">✎ réel</button>` : "")}</td>` : ""}
         </tr>`).join("")}
         <tr class="total-row"><td><b>Total</b></td>${ADMIN ? "<td></td>" : ""}<td></td><td>${monthTotals.count} vente${monthTotals.count > 1 ? "s" : ""}</td>
           ${MARGIN_COLS.map(([k]) => `<td><b>${eur(monthTotals[k])}</b></td>`).join("")}${(hasManual || ADMIN) ? "<td></td>" : ""}
