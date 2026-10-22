@@ -188,18 +188,24 @@ function computeMachine(m, state) {
   const div = perDivisor(state);
   const achat = isAchat(state);
 
-  // VR (« in situ ») : valeur résiduelle = loyer actuel (SA) / coefficient leaser x 1%,
-  // ajoutée au rachat location. Le coefficient dépend lui-même de la tranche du montant
-  // financé, qui dépend du rachat : on estime donc d'abord le montant financé SANS le VR
-  // pour déterminer la tranche/le coefficient, puis on ajoute le VR au rachat (cas limite
-  // négligé : si le VR fait franchir une borne de tranche, l'écart reste minime).
+  // VR (« in situ ») : valeur résiduelle = montant financé initial x 1%, ajoutée au
+  // rachat location. Le montant financé initial est reconstitué à partir du loyer
+  // actuel (SA) et du coefficient leaser (loyer = financé initial x coefficient / 100,
+  // donc financé initial = loyer x 100 / coefficient). Le coefficient dépend lui-même
+  // de la tranche du montant financé (le nouveau, pas celui du VR) : on estime donc
+  // d'abord le montant financé SANS le VR pour déterminer la tranche/le coefficient,
+  // puis on ajoute le VR au rachat (cas limite négligé : si le VR fait franchir une
+  // borne de tranche, l'écart reste minime).
   let vr = 0;
   if (m.inSitu && !achat) {
     const financedForCoeff = (m.margeMode === "loyer")
       ? financedFromLoyer(state, num(m.loyerCible) * div)
       : baseRachat + prixComplet + num(m.marge) + num(m.cadeaux);
     const coeffForVr = baseCoeff(state, financedForCoeff);
-    if (coeffForVr) vr = num(m.loyerActuel) * 100 / coeffForVr;
+    if (coeffForVr) {
+      const financedInitial = num(m.loyerActuel) * 100 / coeffForVr;
+      vr = financedInitial * 0.01;
+    }
   }
   const rachat = baseRachat + vr;
   const rachatLocation = rachatObj.location + vr;
