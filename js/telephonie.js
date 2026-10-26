@@ -114,7 +114,6 @@ function computeTelephonie(state) {
     loyerT = financed * effCoeff(state, financed) / 100;
   }
   const coeffT = baseCoeff(state, financed);
-  const margeDisplay = marge + num(t.rachat) + num(t.cadeaux); // marge + rachat + cadeaux, pour la synthèse
   const totalLocation = loyerT / div;      // affiché selon la périodicité de la proposition (comme l'Impression)
   const totalLocationMensuel = loyerT / 3; // toujours ramené au mois, pour le total "tout inclus"
 
@@ -125,7 +124,8 @@ function computeTelephonie(state) {
     gtrTotal, secours4gTotal, secours5gTotal, dataTotal,
     mobiles, mobileTotal, carteSimTotal,
     abonnementsMensuels, fas,
-    materiels, materielTotal, bonsTotal, installation, materielDisplay, margeDisplay,
+    materiels, materielTotal, bonsTotal, installation, materielDisplay,
+    rachat: num(t.rachat), cadeaux: num(t.cadeaux),
     financed, coeffT, marge, totalLocation, totalLocationMensuel, totalMensuel,
   };
 }
@@ -292,7 +292,7 @@ function renderTelResults() {
       <div class="tot"><span>Abonnements</span><b>${eur(r.abonnementsMensuels)}</b>
         <small class="tot-detail">Système : ${eur(r.systemeTotal)} · Lien internet : ${eur(r.dataTotal)} · Mobile : ${eur(r.mobileTotal)}</small></div>
       <div class="tot"><span>Matériel <small>(en location)</small></span><b>${eur(r.totalLocation)} <small class="unit">${perShort(STATE)}</small></b>
-        <small class="tot-detail">Matériel : ${eur(r.materielDisplay)} · Installation : ${eur(r.installation)} · FAS : ${eur(r.fas)} · Marge : ${eur(r.margeDisplay)}</small></div>
+        <small class="tot-detail">Matériel : ${eur(r.materielDisplay)} · Installation : ${eur(r.installation)} · FAS : ${eur(r.fas)} · Rachat : ${eur(r.rachat)} · Cadeau : ${eur(r.cadeaux)} · Marge : ${eur(r.marge)}</small></div>
       <div class="tot big tel"><span>Total mensuel tout inclus</span><b>${eur(r.totalMensuel)}</b></div>
     </div>`;
 }
