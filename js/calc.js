@@ -311,6 +311,135 @@ function computeAll(state) {
   };
 }
 
+/* ============================================================
+   Mode « location groupée » (defaultLocationEntry / defaultMaintenanceEntry,
+   config.js) : une ligne de location = un loyer combiné (plusieurs machines
+   sous un même contrat) avec son propre financement ; une ligne de
+   maintenance = la maintenance d'une seule machine, totalement indépendante
+   du nombre de lignes de location. Le statut prospect est unique pour tout
+   le dossier (state.groupedProspect), appliqué aux deux.
+   ============================================================ */
+
+/* Rachat d'une ligne de location (loyer combiné) — même logique que la
+   location de rachatMachine, overridable (rachatLocationOverride). */
+function rachatLocationEntry(loc, prospect) {
+  const loyer = num(loc.loyerActuel), trim = trimRestantsEffectifs(loc);
+  const base = loyer * trim;
+  let location = prospect ? base * 1.10 : base;
+  const hasOv = loc.rachatLocationOverride !== "" && loc.rachatLocationOverride != null;
+  if (hasOv) location = num(loc.rachatLocationOverride);
+  return { location, trim };
+}
+/* Rachat de la maintenance d'une ligne — uniquement pour un prospect,
+   overridable (rachatMaintenanceOverride). */
+function rachatMaintenanceEntry(ent, prospect) {
+  const trim = trimRestantsEffectifs(ent);
+  let maintenance = 0;
+  if (prospect) {
+    const maintNB = maxVol(ent.forfaitNB, ent.depassNB, ent.volNBreel) * num(ent.ccNBactuel);
+    const maintCoul = maxVol(ent.forfaitCoul, ent.depassCoul, ent.volCoulReel) * num(ent.ccCoulActuel);
+    const abos = (ent.services || []).reduce((a, s) => a + num(s.sa), 0);
+    maintenance = (maintNB + maintCoul + abos) * trim;
+  }
+  const hasOv = ent.rachatMaintenanceOverride !== "" && ent.rachatMaintenanceOverride != null;
+  if (hasOv) maintenance = num(ent.rachatMaintenanceOverride);
+  return { maintenance, trim };
+}
+
+/* Financement d'une ligne de location : même moteur que computeMachine
+   (coefficient, VR « in situ », marge/loyer), sans composante maintenance
+   (celle-ci est calculée séparément, par ligne de maintenance). */
+function computeLocationEntry(loc, state, prospect) {
+  const { location: baseRachat } = rachatLocationEntry(loc, prospect);
+  const prixMachineEff = num(loc.prixMachine) + num(loc.derogationMikael);
+  const prixComplet = prixMachineEff + num(loc.livraison) + num(loc.portageLivraison) +
+                      num(loc.retrait) + num(loc.portageRetrait) + num(loc.installation);
+  const div = perDivisor(state);
+
+  let vr = 0;
+  if (loc.inSitu) {
+    const financedForCoeff = (loc.margeMode === "loyer")
+      ? financedFromLoyer(state, num(loc.loyerCible) * div)
+      : baseRachat + prixComplet + num(loc.marge) + num(loc.cadeaux);
+    const coeffForVr = baseCoeff(state, financedForCoeff);
+    if (coeffForVr) vr = (num(loc.loyerActuel) * 100 / coeffForVr) * 0.01;
+  }
+  const rachat = baseRachat + vr;
+
+  let financed, marge, spLoyer;
+  if (loc.margeMode === "loyer") {
+    const loyerT = num(loc.loyerCible) * div;
+    financed = financedFromLoyer(state, loyerT);
+    marge = financed - rachat - prixComplet - num(loc.cadeaux);
+    spLoyer = loyerT;
+  } else {
+    marge = num(loc.marge);
+    financed = rachat + prixComplet + marge + num(loc.cadeaux);
+    spLoyer = financed * effCoeff(state, financed) / 100;
+  }
+  const coeffT = baseCoeff(state, financed);
+  const margeFinale = marge + num(loc.fraisLivraisonFacturer);
+  const saAssurance = num(loc.assuranceActuelle);
+  return {
+    rachat, rachatLocation: rachat, vr, financed, coeffT, prixComplet, prixMachineEff,
+    marge, margeFinale, spLoyerT: spLoyer,
+    cadeaux: num(loc.cadeaux), cadeauxLabel: loc.cadeauxLabel || "",
+    fraisLivraisonFacturer: num(loc.fraisLivraisonFacturer),
+    saLoyer: num(loc.loyerActuel), saAssurance,
+    saTotal: num(loc.loyerActuel) + saAssurance, spTotal: spLoyer,
+  };
+}
+
+/* Coûts de maintenance d'une ligne — identique à la partie maintenance de
+   computeMachine, sans financement (pas de loyer ni de marge ici). */
+function computeMaintenanceEntry(ent) {
+  const billedNB = billedMaint(ent.forfaitNB, ent.depassNB, ent.volNBreel);
+  const billedCoul = billedMaint(ent.forfaitCoul, ent.depassCoul, ent.volCoulReel);
+  const maxNB = maxVol(ent.forfaitNB, ent.depassNB, ent.volNBreel);
+  const maxCoul = maxVol(ent.forfaitCoul, ent.depassCoul, ent.volCoulReel);
+  const has = (v) => v !== "" && v !== null && v !== undefined;
+  const spVolNB = has(ent.spVolNB) ? num(ent.spVolNB) : billedNB;
+  const spVolCoul = has(ent.spVolCoul) ? num(ent.spVolCoul) : billedCoul;
+  const saMaintNB = maxNB * num(ent.ccNBactuel);
+  const saMaintCoul = maxCoul * num(ent.ccCoulActuel);
+  const spMaintNB = spVolNB * num(ent.ccNBpropose);
+  const spMaintCoul = spVolCoul * num(ent.ccCoulPropose);
+  const services = (ent.services || []).map((s) => ({ label: s.label, sa: num(s.sa), sp: num(s.sp) }))
+    .filter((s) => s.sa || s.sp);
+  const saServ = services.reduce((a, s) => a + s.sa, 0);
+  const spServ = services.reduce((a, s) => a + s.sp, 0);
+  const saTotal = saMaintNB + saMaintCoul + saServ;
+  const spTotal = spMaintNB + spMaintCoul + spServ;
+  return { billedNB, billedCoul, spVolNB, spVolCoul, saMaintNB, saMaintCoul, spMaintNB, spMaintCoul, services, saServ, spServ, saTotal, spTotal };
+}
+
+/* Vue d'ensemble du dossier en mode « location groupée » — même forme que
+   computeAll() (saTotal/spTotal/savingYear/divisor…) pour rester cohérent
+   avec le reste de l'appli (synthèse, export Excel). */
+function computeGrouped(state) {
+  const prospect = !!state.groupedProspect;
+  const locRows = (state.locations || []).map((loc) => ({ entry: loc, r: computeLocationEntry(loc, state, prospect) }));
+  const maintRows = (state.maintenances || []).map((ent) => ({
+    entry: ent, r: computeMaintenanceEntry(ent), rachat: rachatMaintenanceEntry(ent, prospect),
+  }));
+  const saTotal = locRows.reduce((a, x) => a + x.r.saTotal, 0) + maintRows.reduce((a, x) => a + x.r.saTotal, 0);
+  const spTotal = locRows.reduce((a, x) => a + x.r.spTotal, 0) + maintRows.reduce((a, x) => a + x.r.spTotal, 0);
+  const savingQuarter = saTotal - spTotal;
+  const rachatLocationTotal = locRows.reduce((a, x) => a + x.r.rachat, 0);
+  const rachatMaintenanceTotal = maintRows.reduce((a, x) => a + x.rachat.maintenance, 0);
+  const financedTotal = locRows.reduce((a, x) => a + x.r.financed, 0);
+  const margeTotal = locRows.reduce((a, x) => a + x.r.margeFinale, 0);
+  return {
+    locRows, maintRows, prospect,
+    saTotal, spTotal, savingQuarter, savingYear: savingQuarter * 4,
+    savingPct: saTotal ? (savingQuarter / saTotal) * 100 : 0,
+    rachatLocationTotal, rachatMaintenanceTotal, rachatTotal: rachatLocationTotal + rachatMaintenanceTotal,
+    financedTotal, margeTotal,
+    durationTrim: state.durationTrim,
+    divisor: state.periodiciteProposition === "M" ? 3 : 1,
+  };
+}
+
 /* -------- Périodicité de la proposition (affichage) -------- */
 function perDivisor(state) { return state.periodiciteProposition === "M" ? 3 : 1; }
 function perUnit(state) { return state.periodiciteProposition === "M" ? "MOIS" : "TRIMESTRE"; }

@@ -396,6 +396,24 @@ const SP_CC = [
   { k: "ccCoulPropose", label: "Coût page couleur proposé (€)", t: NUM },
 ];
 
+/* Mode « location groupée » : champs des lignes de Location (loyer combiné
+   + financement) et de Maintenance (indépendantes, une par machine). */
+const LOC_SA_MAIN = [
+  { k: "currentLabel", label: "Désignation (actuelle)", t: TXT, wide: true },
+  { k: "loyerActuel", label: "Loyer actuel / trim (€)", t: NUM },
+  { k: "assuranceActuelle", label: "Assurance / autre / trim (€)", t: NUM },
+];
+const LOC_SP_MAIN = [
+  { k: "proposedLabel", label: "Désignation (proposée)", t: TXT, wide: true },
+  { k: "prixMachine", label: "Prix machine (€)", t: NUM },
+  { k: "derogationMikael", label: "Dérogation Mikael, négatif (€)", t: NUM },
+  { k: "installation", label: "Installation (€)", t: NUM },
+  { k: "livraison", label: "Livraison (dont portage) (€)", t: NUM },
+  { k: "retrait", label: "Retrait (dont portage) (€)", t: NUM },
+];
+const MAINT_SA_MAIN = [{ k: "currentModel", label: "Machine actuelle", t: TXT, wide: true }];
+const MAINT_SP_MAIN = [{ k: "proposedModel", label: "Machine proposée", t: TXT, wide: true }];
+
 /* -------------------- Helpers -------------------- */
 function esc(s) {
   return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -407,6 +425,8 @@ function autoGrowTextarea(el) {
   el.style.height = el.scrollHeight + "px";
 }
 function mById(id) { return STATE.machines.find((m) => m.id === id); }
+function locById(id) { return (STATE.locations || []).find((l) => l.id === id); }
+function maintById(id) { return (STATE.maintenances || []).find((e) => e.id === id); }
 function getPath(o, p) { return p.split(".").reduce((a, k) => (a ? a[k] : undefined), o); }
 function setPath(o, p, v) { const a = p.split("."); const l = a.pop(); a.reduce((x, k) => x[k], o)[l] = v; }
 
@@ -440,18 +460,24 @@ function euroWrap(inp) { return `<div class="money-wrap">${inp}<span class="euro
 function isMoney(label) { return /\(€\)/.test(label); }
 function stripEuro(label) { return label.replace(/\s*\(€\)/, "").trim(); }
 
-function mField(id, f) {
-  const m = mById(id), val = m[f.k];
+/* Champ générique réutilisable pour une « entité » (machine, ligne de
+   location ou ligne de maintenance) : `scope`/`idAttr` déterminent le
+   data-scope/attribut d'id utilisés par les écouteurs d'événements. */
+function entField(scope, idAttr, id, obj, f) {
+  const val = obj[f.k];
   const money = isMoney(f.label);
   const cls = "fld" + (f.wide ? " wide" : "") + (money ? " money" : "");
   const label = money ? stripEuro(f.label) : f.label;
   if (f.t === TXT) {
     return `<label class="${cls}"><span>${label}</span>
-      <input type="text" data-scope="machine" data-mid="${id}" data-key="${f.k}" value="${esc(val)}"></label>`;
+      <input type="text" data-scope="${scope}" data-${idAttr}="${id}" data-key="${f.k}" value="${esc(val)}"></label>`;
   }
-  const inp = `<input type="number" step="any" inputmode="decimal" data-scope="machine" data-mid="${id}" data-key="${f.k}" value="${esc(val)}">`;
+  const inp = `<input type="number" step="any" inputmode="decimal" data-scope="${scope}" data-${idAttr}="${id}" data-key="${f.k}" value="${esc(val)}">`;
   return `<label class="${cls}"><span>${label}</span>${money ? euroWrap(inp) : inp}</label>`;
 }
+function mField(id, f) { return entField("machine", "mid", id, mById(id), f); }
+function locField(id, f) { return entField("location", "lid", id, locById(id), f); }
+function maintField(id, f) { return entField("maintenance", "eid", id, maintById(id), f); }
 function topField(scope, k, label, type, extra) {
   const val = getPath(STATE, `${scope}.${k}`);
   const t = type === NUM ? 'type="number" step="any" inputmode="decimal"' : (type || 'type="text"');
@@ -606,21 +632,28 @@ function renderApp() {
     </section>` : `
     <section class="card">
       <div class="card-head"><h2>Machines</h2>
-        <button class="btn" data-action="add-machine">＋ Ajouter une machine</button></div>
-      <div id="machines"></div>
+        <div class="head-actions">
+          ${s.offerType === "sasp" ? `<label class="fld chk"><input type="checkbox" data-scope="root" data-key="groupedMode" ${s.groupedMode ? "checked" : ""}>
+            <span>Location groupée (plusieurs machines, loyers combinés)</span></label>` : ""}
+          ${!s.groupedMode ? `<button class="btn" data-action="add-machine">＋ Ajouter une machine</button>` : ""}
+        </div>
+      </div>
+      ${s.groupedMode ? `<div id="grouped"></div>` : `<div id="machines"></div>`}
     </section>
 
     <section class="card results" id="results"></section>
 
     <section class="card actions">
       <button class="btn primary" data-action="export-xlsx">⬇︎ Excel SA/SP</button>
-      <button class="btn primary" data-action="export-pptx">⬇︎ Powerpoint Proposition commerciale</button>
-      <button class="btn primary" data-action="export-pdf">⬇︎ PDF Descriptif</button>
+      <button class="btn primary" data-action="export-pptx" ${s.groupedMode ? `disabled title="Pas encore disponible en mode « Location groupée »"` : ""}>⬇︎ Powerpoint Proposition commerciale</button>
+      <button class="btn primary" data-action="export-pdf" ${s.groupedMode ? `disabled title="Pas encore disponible en mode « Location groupée »"` : ""}>⬇︎ PDF Descriptif</button>
       <button class="btn ghost" data-action="reset">Réinitialiser</button>
       <span id="status" class="status"></span>
     </section>`}
     </div>`;
-  if (s.simMode === "telephonie") { renderTelephonie(); } else { renderMachines(); renderResults(); }
+  if (s.simMode === "telephonie") { renderTelephonie(); }
+  else if (s.groupedMode) { renderGrouped(); renderGroupedResults(); }
+  else { renderMachines(); renderResults(); }
   renderAdmin(); renderSaved();
   if (ADMIN) renderUsers();
   if (readOnly) lockEditArea();
@@ -1491,8 +1524,218 @@ function renderResults() {
     <p class="muted small">${c.durationTrim} trimestres · ${esc(STATE.leaser)}</p>`;
 }
 
+/* ==================== Mode « location groupée » ====================
+   Alternative à machineCard() : au lieu d'une « machine » combinant SA+SP+
+   loyer+maintenance, on sépare les lignes de Location (loyer combiné,
+   financement) des lignes de Maintenance (indépendantes, une par machine).
+   Le statut prospect est unique pour tout le dossier. */
+function svcRowsSideMaint(ent, side) {
+  return `<div class="svc-grid">` + ent.services.map((sv, idx) => `
+    <div class="svc-item">
+      <input class="svc-label" type="text" placeholder="${idx < 4 ? "Libellé" : "Autre"}"
+        data-scope="msvc" data-eid="${ent.id}" data-idx="${idx}" data-field="label" value="${esc(sv.label)}">
+      <input class="svc-val" type="number" step="any" inputmode="decimal" placeholder="€"
+        data-scope="msvc" data-eid="${ent.id}" data-idx="${idx}" data-field="${side}" value="${esc(sv[side])}">
+    </div>`).join("") + `</div>`;
+}
+
+function locationEntryCard(loc, i) {
+  const loyerLabel = `Loyer proposé ${perShort(STATE)}`;
+  const loyerCalcLabel = `Loyer proposé (calculé) ${perShort(STATE)}`;
+  return `<div class="machine" data-lid="${loc.id}">
+    <div class="machine-head">
+      <strong>Location ${i + 1}</strong>
+      <div class="machine-actions">
+        <button class="btn small" data-action="dup-location" data-lid="${loc.id}">Dupliquer</button>
+        <button class="btn small danger" data-action="del-location" data-lid="${loc.id}" ${STATE.locations.length <= 1 ? "disabled" : ""}>Supprimer</button>
+      </div>
+    </div>
+    <div class="machine-cols">
+      <div class="col col-sa">
+        <h3>Situation actuelle</h3>
+        <div class="grid">${LOC_SA_MAIN.map((f) => locField(loc.id, f)).join("")}
+          <label class="fld"><span>Trimestres restants — mode</span>
+            <select data-scope="location-sel" data-lid="${loc.id}" data-key="trimRestantsMode">
+              <option value="manuel" ${loc.trimRestantsMode !== "calcule" ? "selected" : ""}>Saisie manuelle</option>
+              <option value="calcule" ${loc.trimRestantsMode === "calcule" ? "selected" : ""}>Calcul auto (date + durée)</option>
+            </select></label>
+          ${loc.trimRestantsMode === "calcule"
+            ? `<label class="fld"><span>Date d'installation</span>
+                 <input type="date" data-scope="location" data-lid="${loc.id}" data-key="dateInstallationActuelle" value="${esc(loc.dateInstallationActuelle)}"></label>
+               <label class="fld"><span>Durée du contrat (trimestres)</span>
+                 <input type="number" step="1" inputmode="numeric" data-scope="location" data-lid="${loc.id}" data-key="dureeContratActuel" value="${esc(loc.dureeContratActuel)}"></label>
+               <div class="fld"><span>Trimestres restants (calculé)</span><div class="ro" id="ro-loc-trimrestants-${loc.id}"></div></div>`
+            : `<label class="fld"><span>Trimestres restants</span>
+                 <input type="number" step="any" inputmode="decimal" data-scope="location" data-lid="${loc.id}" data-key="trimRestants" value="${esc(loc.trimRestants)}"></label>`}
+        </div>
+      </div>
+      <div class="col col-sp">
+        <h3>Solution proposée</h3>
+        <div class="grid">${locField(loc.id, LOC_SP_MAIN[0])}
+          <label class="fld chk"><input type="checkbox" data-scope="location" data-lid="${loc.id}" data-key="inSitu" ${loc.inSitu ? "checked" : ""}>
+            <span>In situ</span></label>
+        </div>
+        <div class="grid sp-price-row">${LOC_SP_MAIN.slice(1).map((f) => locField(loc.id, f)).join("")}</div>
+        <div class="subgrid"><h4>Rachat, cadeau &amp; marge</h4>
+          <div class="grid">
+            <div class="fld"><span>Rachat (calculé)</span><div class="ro" id="ro-loc-rachat-${loc.id}"></div></div>
+            <div class="fld"><span>VR</span><div class="ro" id="ro-loc-vr-${loc.id}"></div></div>
+            <label class="fld money"><span>Cadeau / autre</span>
+              ${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="location" data-lid="${loc.id}" data-key="cadeaux" value="${esc(loc.cadeaux)}">`)}</label>
+            <label class="fld wide"><span>Descriptif cadeau / autre</span>
+              <input type="text" data-scope="location" data-lid="${loc.id}" data-key="cadeauxLabel" value="${esc(loc.cadeauxLabel)}"></label>
+            <label class="fld"><span>Mode de calcul</span>
+              <select data-scope="location-sel" data-lid="${loc.id}" data-key="margeMode">
+                <option value="marge" ${loc.margeMode !== "loyer" ? "selected" : ""}>Marge → loyer</option>
+                <option value="loyer" ${loc.margeMode === "loyer" ? "selected" : ""}>Loyer → marge</option>
+              </select></label>
+            ${loc.margeMode === "loyer"
+              ? `<label class="fld money"><span>${loyerLabel}</span>
+                   ${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="location" data-lid="${loc.id}" data-key="loyerCible" value="${esc(loc.loyerCible)}">`)}</label>
+                 <div class="fld"><span>Marge (calculée)</span><div class="ro" id="ro-loc-calc-${loc.id}"></div></div>`
+              : `<label class="fld money"><span>Marge commerciale</span>
+                   ${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="location" data-lid="${loc.id}" data-key="marge" value="${esc(loc.marge)}">`)}</label>
+                 <div class="fld"><span>${loyerCalcLabel}</span><div class="ro" id="ro-loc-calc-${loc.id}"></div></div>`}
+            ${ADMIN ? `<div class="fld"><span>Coefficient leaser</span><div class="ro" id="coeff-loc-${loc.id}"></div></div>` : ""}
+          </div>
+        </div>
+        <div class="subgrid">
+          <label class="fld money"><span>Frais de livraison à facturer</span>
+            ${euroWrap(`<input type="number" step="any" inputmode="decimal" data-scope="location" data-lid="${loc.id}" data-key="fraisLivraisonFacturer" value="${esc(loc.fraisLivraisonFacturer)}">`)}</label>
+          <p class="hint">Facturé au client à part (hors financement), s'ajoute à la marge du dossier.</p>
+        </div>
+      </div>
+    </div>
+    <div class="machine-sum" id="lsum-${loc.id}"></div>
+  </div>`;
+}
+
+function maintenanceEntryCard(ent, i) {
+  return `<div class="machine" data-eid="${ent.id}">
+    <div class="machine-head">
+      <strong>Maintenance ${i + 1}</strong>
+      <div class="machine-actions">
+        <button class="btn small" data-action="dup-maintenance" data-eid="${ent.id}">Dupliquer</button>
+        <button class="btn small danger" data-action="del-maintenance" data-eid="${ent.id}" ${STATE.maintenances.length <= 1 ? "disabled" : ""}>Supprimer</button>
+      </div>
+    </div>
+    <div class="machine-cols">
+      <div class="col col-sa">
+        <h3>Situation actuelle</h3>
+        <div class="grid">${MAINT_SA_MAIN.map((f) => maintField(ent.id, f)).join("")}
+          <label class="fld"><span>Trimestres restants — mode</span>
+            <select data-scope="maintenance-sel" data-eid="${ent.id}" data-key="trimRestantsMode">
+              <option value="manuel" ${ent.trimRestantsMode !== "calcule" ? "selected" : ""}>Saisie manuelle</option>
+              <option value="calcule" ${ent.trimRestantsMode === "calcule" ? "selected" : ""}>Calcul auto (date + durée)</option>
+            </select></label>
+          ${ent.trimRestantsMode === "calcule"
+            ? `<label class="fld"><span>Date d'installation</span>
+                 <input type="date" data-scope="maintenance" data-eid="${ent.id}" data-key="dateInstallationActuelle" value="${esc(ent.dateInstallationActuelle)}"></label>
+               <label class="fld"><span>Durée du contrat (trimestres)</span>
+                 <input type="number" step="1" inputmode="numeric" data-scope="maintenance" data-eid="${ent.id}" data-key="dureeContratActuel" value="${esc(ent.dureeContratActuel)}"></label>
+               <div class="fld"><span>Trimestres restants (calculé)</span><div class="ro" id="ro-maint-trimrestants-${ent.id}"></div></div>`
+            : `<label class="fld"><span>Trimestres restants</span>
+                 <input type="number" step="any" inputmode="decimal" data-scope="maintenance" data-eid="${ent.id}" data-key="trimRestants" value="${esc(ent.trimRestants)}"></label>`}
+          <p class="hint">Utilisé uniquement si « Prospect » est coché (rachat de la maintenance).</p>
+        </div>
+        <div class="subgrid"><h4>N&amp;B</h4><div class="grid">${SA_NB.map((f) => maintField(ent.id, f)).join("")}</div></div>
+        <div class="subgrid"><h4>Couleur</h4><div class="grid">${SA_COUL.map((f) => maintField(ent.id, f)).join("")}</div></div>
+        <div class="subgrid"><h4>Service &amp; abonnements <small>(actuel)</small></h4>
+          ${svcRowsSideMaint(ent, "sa")}
+        </div>
+      </div>
+      <div class="col col-sp">
+        <h3>Solution proposée</h3>
+        <div class="grid">${MAINT_SP_MAIN.map((f) => maintField(ent.id, f)).join("")}</div>
+        <div class="subgrid"><h4>N&amp;B proposé</h4>
+          <div class="grid">
+            <label class="fld"><span>Volume N&amp;B proposé (pages)</span>
+              <input type="number" step="any" inputmode="decimal" data-scope="maintspvol" data-eid="${ent.id}" data-key="spVolNB" id="maintspvol-nb-${ent.id}" value="${esc(ent.spVolNB)}"></label>
+            ${maintField(ent.id, SP_CC[0])}
+          </div>
+        </div>
+        <div class="subgrid"><h4>Couleur proposé</h4>
+          <div class="grid">
+            <label class="fld"><span>Volume couleur proposé (pages)</span>
+              <input type="number" step="any" inputmode="decimal" data-scope="maintspvol" data-eid="${ent.id}" data-key="spVolCoul" id="maintspvol-coul-${ent.id}" value="${esc(ent.spVolCoul)}"></label>
+            ${maintField(ent.id, SP_CC[1])}
+          </div>
+        </div>
+        <div class="subgrid"><h4>Service &amp; abonnements <small>(proposé)</small></h4>
+          ${svcRowsSideMaint(ent, "sp")}
+        </div>
+      </div>
+    </div>
+    <div class="machine-sum" id="esum-${ent.id}"></div>
+  </div>`;
+}
+
+function renderGrouped() {
+  const el = document.getElementById("grouped"); if (!el) return;
+  el.innerHTML = `
+    <label class="fld chk"><input type="checkbox" data-scope="root" data-key="groupedProspect" ${STATE.groupedProspect ? "checked" : ""}>
+      <span>Prospect (chez un concurrent) — pour tout le dossier</span></label>
+    <div class="card-head"><h3>Location</h3>
+      <button class="btn small" data-action="add-location">＋ Ajouter une location</button></div>
+    <div id="locations">${STATE.locations.map((l, i) => locationEntryCard(l, i)).join("")}</div>
+    <div class="card-head"><h3>Maintenance</h3>
+      <button class="btn small" data-action="add-maintenance">＋ Ajouter une maintenance</button></div>
+    <div id="maintenances">${STATE.maintenances.map((x, i) => maintenanceEntryCard(x, i)).join("")}</div>`;
+}
+
+function renderGroupedResults() {
+  const c = computeGrouped(STATE), div = c.divisor;
+  c.locRows.forEach(({ entry: loc, r }) => {
+    const roR = document.getElementById("ro-loc-rachat-" + loc.id); if (roR) roR.textContent = eur(r.rachat);
+    const roVr = document.getElementById("ro-loc-vr-" + loc.id); if (roVr) roVr.textContent = eur(r.vr);
+    const roTrim = document.getElementById("ro-loc-trimrestants-" + loc.id);
+    if (roTrim) roTrim.textContent = frNum(trimRestantsEffectifs(loc), 0);
+    const roC = document.getElementById("ro-loc-calc-" + loc.id);
+    if (roC) roC.textContent = loc.margeMode === "loyer" ? eur(r.margeFinale) : eur(r.spLoyerT / div);
+    const coeffEl = document.getElementById("coeff-loc-" + loc.id);
+    if (coeffEl) coeffEl.textContent = frNum(r.coeffT, 3) + " %";
+    const el = document.getElementById("lsum-" + loc.id); if (!el) return;
+    const logistique = num(loc.livraison) + num(loc.retrait) + num(loc.installation) + num(loc.portageLivraison) + num(loc.portageRetrait);
+    el.innerHTML = `
+      <span>Rachat total : <b>${eur(r.rachat)}</b></span>
+      <span>Prix machine : <b>${eur(num(loc.prixMachine))}</b></span>
+      <span>Livraison + retrait + installation : <b>${eur(logistique)}</b></span>
+      <span>Cadeau / autre : <b>${eur(r.cadeaux)}</b></span>
+      <span>Marge : <b class="${r.margeFinale < 0 ? "neg" : ""}">${eur(r.margeFinale)}</b></span>`;
+  });
+  c.maintRows.forEach(({ entry: ent, r, rachat }) => {
+    const roTrim = document.getElementById("ro-maint-trimrestants-" + ent.id);
+    if (roTrim) roTrim.textContent = frNum(trimRestantsEffectifs(ent), 0);
+    const nbEl = document.getElementById("maintspvol-nb-" + ent.id);
+    if (nbEl && (ent.spVolNB === "" || ent.spVolNB == null) && document.activeElement !== nbEl) nbEl.value = Math.round(r.billedNB);
+    const coulEl = document.getElementById("maintspvol-coul-" + ent.id);
+    if (coulEl && (ent.spVolCoul === "" || ent.spVolCoul == null) && document.activeElement !== coulEl) coulEl.value = Math.round(r.billedCoul);
+    const el = document.getElementById("esum-" + ent.id); if (!el) return;
+    el.innerHTML = `
+      <span>SA total : <b>${eur(r.saTotal)}</b></span>
+      <span>SP total : <b>${eur(r.spTotal)}</b></span>
+      ${STATE.groupedProspect ? `<span>Rachat maintenance : <b>${eur(rachat.maintenance)}</b></span>` : ""}`;
+  });
+  const res = document.getElementById("results"); if (!res) return;
+  const eco = c.savingYear;
+  res.innerHTML = `
+    <h2>Synthèse (${perAdj(STATE)})</h2>
+    <div class="totals">
+      <div class="tot"><span>Situation actuelle</span><b>${eur(c.saTotal / div)} <small class="unit">${perShort(STATE)}</small></b></div>
+      <div class="tot"><span>Solution proposée</span><b>${eur(c.spTotal / div)} <small class="unit">${perShort(STATE)}</small></b></div>
+      <div class="tot big ${eco >= 0 ? "pos" : "neg"}"><span>${eco >= 0 ? "Économie" : "Surcoût"} annuel</span>
+        <b>${eur(Math.abs(eco))}</b><small>${eur(Math.abs(c.savingQuarter) / div)} ${perShort(STATE)} · ${frNum(Math.abs(c.savingPct), 1)} %</small></div>
+    </div>
+    <p class="muted small">${c.durationTrim} trimestres · ${esc(STATE.leaser)}</p>`;
+}
+
 /* -------------------- Événements -------------------- */
-function commit() { saveState(STATE); if (STATE.simMode === "telephonie") renderTelResults(); else renderResults(); }
+function commit() {
+  saveState(STATE);
+  if (STATE.simMode === "telephonie") renderTelResults();
+  else if (STATE.groupedMode) renderGroupedResults();
+  else renderResults();
+}
 
 document.addEventListener("input", (e) => {
   const t = e.target;
@@ -1512,6 +1755,10 @@ document.addEventListener("input", (e) => {
   }
   if (!t.dataset || !t.dataset.scope) return;
   if (t.dataset.scope === "user" || t.dataset.scope === "portfolio") return; // édité au blur/change (voir "change")
+  // <select> (bascule de mode) : géré uniquement au "change" ci-dessous — un <select>
+  // déclenche aussi "input" dans les navigateurs, qui tomberait sinon dans le cas
+  // générique setPath() en bas de cette fonction et planterait (scope inexistant sur STATE).
+  if (t.dataset.scope === "machine-sel" || t.dataset.scope === "location-sel" || t.dataset.scope === "maintenance-sel") return;
   const scope = t.dataset.scope, key = t.dataset.key;
   const val = t.type === "checkbox" ? t.checked : (t.type === "number" ? (t.value === "" ? 0 : num(t.value)) : t.value);
   if (scope === "machine") {
@@ -1525,12 +1772,26 @@ document.addEventListener("input", (e) => {
     }
   } else if (scope === "spvol") {
     const m = mById(t.dataset.mid); if (m) m[t.dataset.key] = t.value; // "" = auto
+  } else if (scope === "location") {
+    const l = locById(t.dataset.lid); if (l) l[key] = val;
+  } else if (scope === "maintenance") {
+    const ent = maintById(t.dataset.eid); if (ent) ent[key] = val;
+  } else if (scope === "maintspvol") {
+    const ent = maintById(t.dataset.eid); if (ent) ent[t.dataset.key] = t.value; // "" = auto
+  } else if (scope === "msvc") {
+    const ent = maintById(t.dataset.eid); const sv = ent.services[+t.dataset.idx];
+    sv[t.dataset.field] = t.dataset.field === "label" ? t.value : (t.value === "" ? 0 : num(t.value));
+    if (t.dataset.field === "label") { // libellé partagé : synchronise les 2 blocs
+      document.querySelectorAll(`input.svc-label[data-eid="${t.dataset.eid}"][data-idx="${t.dataset.idx}"]`)
+        .forEach((el) => { if (el !== t) el.value = t.value; });
+    }
   } else if (scope === "telarr") {
     const arr = STATE.telephonie[t.dataset.arr];
     const item = arr && arr[+t.dataset.idx];
     if (item) item[t.dataset.field] = val;
   } else if (scope === "root") {
     STATE[key] = (key === "durationTrim") ? parseInt(t.value, 10) : (t.type === "checkbox" ? t.checked : t.value);
+    if (key === "groupedMode") { saveState(STATE); renderApp(); return; }
   } else if (scope === "company") {
     STATE.company[key] = val;
     if (key === "repName" && !STATE.company.repEmailManual) {
@@ -1683,15 +1944,24 @@ document.addEventListener("change", (e) => {
       saveState(STATE); renderApp(); return;
     }
     if (t.dataset.key === "offerType" || t.dataset.key === "financeMode") {
+      // Location groupée uniquement pertinente en SA-SP : on la désactive si on la quitte.
+      if (t.dataset.key === "offerType" && t.value !== "sasp") STATE.groupedMode = false;
       // Bascule SA-SP/SP simple ou location/achat : colonne SA et bloc Financement
       // apparaissent/disparaissent, les libellés loyer/prix changent -> rendu complet.
       saveState(STATE); renderApp(); return;
     }
     if (t.dataset.key === "leaser") renderAdmin();
-    renderMachines(); renderResults(); // périodicité/leaser : rafraîchit les libellés
+    // périodicité/leaser : rafraîchit les libellés
+    if (STATE.groupedMode) { renderGrouped(); renderGroupedResults(); } else { renderMachines(); renderResults(); }
   } else if (t.dataset.scope === "machine-sel") {
     const m = mById(t.dataset.mid); if (m) m[t.dataset.key] = t.value;
     saveState(STATE); renderMachines(); renderResults(); // bascule marge/loyer
+  } else if (t.dataset.scope === "location-sel") {
+    const l = locById(t.dataset.lid); if (l) l[t.dataset.key] = t.value;
+    saveState(STATE); renderGrouped(); renderGroupedResults(); // bascule marge/loyer ou trimestres restants
+  } else if (t.dataset.scope === "maintenance-sel") {
+    const ent = maintById(t.dataset.eid); if (ent) ent[t.dataset.key] = t.value;
+    saveState(STATE); renderGrouped(); renderGroupedResults(); // bascule trimestres restants
   } else if (t.dataset.scope === "telephonie") {
     setPath(STATE, `telephonie.${t.dataset.key}`, t.value);
     saveState(STATE); renderTelephonie(); // système (Centrex/Trunk) ou mode marge/loyer : rafraîchit les champs affichés
@@ -1718,10 +1988,30 @@ document.addEventListener("click", async (e) => {
       if (STATE.machines.length <= 1) break;
       STATE.machines = STATE.machines.filter((x) => x.id !== mid);
       saveState(STATE); renderMachines(); renderResults(); break;
+    case "add-location": STATE.locations.push(defaultLocationEntry()); saveState(STATE); renderGrouped(); renderGroupedResults(); break;
+    case "dup-location": {
+      const src = locById(btn.dataset.lid); const copy = JSON.parse(JSON.stringify(src)); copy.id = cryptoId();
+      STATE.locations.splice(STATE.locations.indexOf(src) + 1, 0, copy);
+      saveState(STATE); renderGrouped(); renderGroupedResults(); break;
+    }
+    case "del-location":
+      if (STATE.locations.length <= 1) break;
+      STATE.locations = STATE.locations.filter((x) => x.id !== btn.dataset.lid);
+      saveState(STATE); renderGrouped(); renderGroupedResults(); break;
+    case "add-maintenance": STATE.maintenances.push(defaultMaintenanceEntry()); saveState(STATE); renderGrouped(); renderGroupedResults(); break;
+    case "dup-maintenance": {
+      const src = maintById(btn.dataset.eid); const copy = JSON.parse(JSON.stringify(src)); copy.id = cryptoId();
+      STATE.maintenances.splice(STATE.maintenances.indexOf(src) + 1, 0, copy);
+      saveState(STATE); renderGrouped(); renderGroupedResults(); break;
+    }
+    case "del-maintenance":
+      if (STATE.maintenances.length <= 1) break;
+      STATE.maintenances = STATE.maintenances.filter((x) => x.id !== btn.dataset.eid);
+      saveState(STATE); renderGrouped(); renderGroupedResults(); break;
     case "reset":
       if (confirm("Réinitialiser toute la saisie ?")) { STATE = defaultState(); LOADED_SIM_ID = ""; saveState(STATE); renderApp(); } break;
     case "export-xlsx":
-      try { await exportExcel(STATE, computeAll(STATE)); flash("Excel généré."); }
+      try { await exportExcel(STATE, STATE.groupedMode ? computeGrouped(STATE) : computeAll(STATE)); flash("Excel généré."); }
       catch (err) { flash("Erreur Excel : " + err.message, true); console.error(err); } break;
     case "export-pptx":
       flash("Génération du PowerPoint…");
@@ -1736,7 +2026,10 @@ document.addEventListener("click", async (e) => {
       catch (err) { flash("Erreur PDF : " + err.message, true); console.error(err); } break;
     case "admin-unlock": COEFF_UNLOCKED = true; renderAdmin(); break;
     case "admin-lock": COEFF_UNLOCKED = false; renderAdmin(); break;
-    case "admin-clear-override": STATE.coeffOverride = ""; saveState(STATE); renderAdmin(); renderResults(); break;
+    case "admin-clear-override":
+      STATE.coeffOverride = ""; saveState(STATE); renderAdmin();
+      if (STATE.groupedMode) renderGroupedResults(); else renderResults();
+      break;
     case "retry-firebase": location.reload(); break;
     case "open-users": if (ADMIN) openUsersModal(); break;
     case "toggle-margins":

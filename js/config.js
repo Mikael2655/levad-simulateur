@@ -137,6 +137,64 @@ function defaultMachine() {
   };
 }
 
+/* Mode « location groupée » : alternative à defaultMachine() pour les dossiers
+   où plusieurs machines sont sous UN loyer combiné (location) mais chacune a
+   sa propre maintenance (NB/couleur/abonnements). Au lieu d'une liste de
+   « machines » (SA+SP+loyer+maintenance imbriqués), on sépare :
+   - state.locations : une ligne = un loyer combiné (actuel + proposé),
+     avec son propre financement (prix, marge, VR…) — aussi peu ou autant
+     de lignes que de contrats de location distincts.
+   - state.maintenances : une ligne = la maintenance d'une seule machine
+     (actuelle + proposée) — indépendamment du nombre de lignes de location
+     (une location groupée peut couvrir plus ou moins de machines que de
+     lignes de maintenance ne le laisseraient penser). */
+function defaultLocationEntry() {
+  return {
+    id: cryptoId(),
+    // ---- Situation actuelle ----
+    currentLabel: "",       // désignation libre (ex. "iRA C5840i - MF 657")
+    loyerActuel: 0,         // loyer trimestriel actuel combiné (€)
+    assuranceActuelle: 0,
+    trimRestants: 0,
+    trimRestantsMode: "manuel",
+    dateInstallationActuelle: "",
+    dureeContratActuel: 0,
+    rachatLocationOverride: "",
+    // ---- Solution proposée ----
+    proposedLabel: "",      // désignation libre (ex. "iRA C5840i - iF C1333")
+    inSitu: false,
+    prixMachine: 0,
+    derogationMikael: 0,
+    livraison: 0, portageLivraison: 0,
+    retrait: 0, portageRetrait: 0,
+    installation: 0,
+    margeMode: "marge",
+    marge: 0,
+    loyerCible: 0,
+    cadeaux: 0, cadeauxLabel: "",
+    fraisLivraisonFacturer: 0,
+  };
+}
+function defaultMaintenanceEntry() {
+  return {
+    id: cryptoId(),
+    // ---- Situation actuelle ----
+    currentModel: "",
+    forfaitNB: 0, depassNB: 0, volNBreel: 0, ccNBactuel: 0,
+    forfaitCoul: 0, depassCoul: 0, volCoulReel: 0, ccCoulActuel: 0,
+    trimRestants: 0,         // pour le rachat maintenance (prospect) : indépendant du loyer
+    trimRestantsMode: "manuel",
+    dateInstallationActuelle: "",
+    dureeContratActuel: 0,
+    rachatMaintenanceOverride: "",
+    // ---- Solution proposée ----
+    proposedModel: "",
+    ccNBpropose: 0.005, ccCoulPropose: 0.05,
+    spVolNB: "", spVolCoul: "",
+    services: defaultServices(),
+  };
+}
+
 function defaultState() {
   return {
     client: {
@@ -156,6 +214,10 @@ function defaultState() {
     simMode: "impression",  // "impression" (Canon) ou "telephonie"
     offerType: "sasp",      // "sasp" (comparaison situation actuelle / solution proposée) ou "sp" (solution proposée seule)
     financeMode: "location", // "location" (financement, loyer) ou "achat" (prix direct, sans financement) — pertinent seulement si offerType === "sp"
+    groupedMode: false,     // "location groupée" : remplace les cartes machine par des blocs Location / Maintenance séparés
+    groupedProspect: false, // statut prospect (client Levad / concurrent) pour tout le dossier, en mode groupé
+    locations: [defaultLocationEntry()],
+    maintenances: [defaultMaintenanceEntry()],
     telephonie: defaultTelephonie(),
   };
 }

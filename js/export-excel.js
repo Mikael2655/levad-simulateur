@@ -96,36 +96,68 @@ async function exportExcel(state, calc) {
     x.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GREEN_LT } }; setBorder(x);
   }));
 
-  // Corps : lignes par machine
+  // Corps : lignes par machine (ou par ligne de location / maintenance en mode groupé).
+  // Une ligne « en-tête » (ex. « Maintenance X ») n'a que la désignation : qte=null.
   let row = 7;
   const putLine = (col0, line) => {
     const [desig, qte, pu, total] = line;
     const cD = ws.getCell(col0[0] + row), cQ = ws.getCell(col0[1] + row), cP = ws.getCell(col0[2] + row), cT = ws.getCell(col0[3] + row);
     cD.value = desig; cD.alignment = center; cD.font = { size: 12 };
-    cQ.value = qte; cQ.alignment = center; cQ.font = { size: 12 };
-    if (desig.startsWith("Impressions")) cQ.numFmt = qteFmtX;
-    cP.value = pu; cP.alignment = center; cP.font = { size: 12 };
-    cP.numFmt = desig.startsWith("Impressions") ? ccFmtX : money;
-    cT.value = total; cT.alignment = center; cT.font = { size: 12, bold: true }; cT.numFmt = money;
+    if (qte !== null) {
+      cQ.value = qte; cQ.alignment = center; cQ.font = { size: 12 };
+      if (desig.startsWith("Impressions")) cQ.numFmt = qteFmtX;
+      cP.value = pu; cP.alignment = center; cP.font = { size: 12 };
+      cP.numFmt = desig.startsWith("Impressions") ? ccFmtX : money;
+      cT.value = total; cT.alignment = center; cT.font = { size: 12, bold: true }; cT.numFmt = money;
+    }
     [cD, cQ, cP, cT].forEach(setBorder);
   };
-
-  calc.rows.forEach((r) => {
-    const saLines = lineFor(r.sa, div);
-    const spLines = lineFor(r.sp, div);
-    // services actifs (mêmes lignes des 2 côtés)
-    r.services.forEach((s) => {
-      const lbl = s.label && s.label.trim() ? s.label : "Service";
-      saLines.push([lbl, 1, s.sa / div, s.sa / div]);
-      spLines.push([lbl, 1, s.sp / div, s.sp / div]);
-    });
+  const putSides = (saLines, spLines) => {
     const n = Math.max(saLines.length, spLines.length);
     for (let k = 0; k < n; k++) {
       if (saLines[k]) putLine(["C", "D", "E", "F"], saLines[k]);
       if (spLines[k]) putLine(["H", "I", "J", "K"], spLines[k]);
       row++;
     }
-  });
+  };
+
+  if (state.groupedMode) {
+    // Un bloc « Location » par ligne de location (loyer combiné, qté 1), puis un
+    // bloc « Maintenance X » par ligne de maintenance (indépendant du nombre de
+    // lignes de location) avec ses sous-lignes Impressions N/B, couleurs, services.
+    const saLines = [], spLines = [];
+    (calc.locRows || []).forEach(({ entry: loc, r }) => {
+      saLines.push([`Location\n${loc.currentLabel || ""}`, 1, num(loc.loyerActuel) / div, num(loc.loyerActuel) / div]);
+      spLines.push([`Location\n${loc.proposedLabel || ""}`, 1, r.spLoyerT / div, r.spLoyerT / div]);
+      if (num(loc.assuranceActuelle)) saLines.push(["Assurance / autre", 1, num(loc.assuranceActuelle) / div, num(loc.assuranceActuelle) / div]);
+    });
+    (calc.maintRows || []).forEach(({ entry: ent, r }) => {
+      saLines.push([`Maintenance ${ent.currentModel || ""}`, null, null, null]);
+      spLines.push([`Maintenance ${ent.proposedModel || ""}`, null, null, null]);
+      if (r.billedNB || r.saMaintNB) saLines.push(["Impressions N/B", Math.round(r.billedNB / div), num(ent.ccNBactuel), r.saMaintNB / div]);
+      if (r.spVolNB || r.spMaintNB) spLines.push(["Impressions N/B", Math.round(r.spVolNB / div), num(ent.ccNBpropose), r.spMaintNB / div]);
+      if (r.billedCoul || r.saMaintCoul) saLines.push(["Impressions couleurs", Math.round(r.billedCoul / div), num(ent.ccCoulActuel), r.saMaintCoul / div]);
+      if (r.spVolCoul || r.spMaintCoul) spLines.push(["Impressions couleurs", Math.round(r.spVolCoul / div), num(ent.ccCoulPropose), r.spMaintCoul / div]);
+      r.services.forEach((s) => {
+        const lbl = s.label && s.label.trim() ? s.label : "Service";
+        saLines.push([lbl, 1, s.sa / div, s.sa / div]);
+        spLines.push([lbl, 1, s.sp / div, s.sp / div]);
+      });
+    });
+    putSides(saLines, spLines);
+  } else {
+    calc.rows.forEach((r) => {
+      const saLines = lineFor(r.sa, div);
+      const spLines = lineFor(r.sp, div);
+      // services actifs (mêmes lignes des 2 côtés)
+      r.services.forEach((s) => {
+        const lbl = s.label && s.label.trim() ? s.label : "Service";
+        saLines.push([lbl, 1, s.sa / div, s.sa / div]);
+        spLines.push([lbl, 1, s.sp / div, s.sp / div]);
+      });
+      putSides(saLines, spLines);
+    });
+  }
 
   // Totaux
   ["C", "H"].forEach((col) => { const x = ws.getCell(col + row); x.value = "TOTAL"; x.font = { bold: true, size: 12 }; x.alignment = center; setBorder(x); });

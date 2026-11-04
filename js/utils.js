@@ -51,6 +51,16 @@ function normalizeState(s) {
           return mm;
         })
       : base.machines,
+    locations: Array.isArray(s.locations) && s.locations.length
+      ? s.locations.map((l) => ({ ...defaultLocationEntry(), ...l }))
+      : base.locations,
+    maintenances: Array.isArray(s.maintenances) && s.maintenances.length
+      ? s.maintenances.map((e) => {
+          const ee = { ...defaultMaintenanceEntry(), ...e };
+          if (!Array.isArray(ee.services) || !ee.services.length) ee.services = defaultServices();
+          return ee;
+        })
+      : base.maintenances,
     telephonie: {
       ...base.telephonie, ...(s.telephonie || {}),
       centrex: { ...base.telephonie.centrex, ...((s.telephonie && s.telephonie.centrex) || {}) },

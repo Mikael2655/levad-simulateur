@@ -40,7 +40,9 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 }
 .card h2 { margin: 0 0 12px; font-size: 16px; }
 .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.card-head h2 { margin: 0; }
+.card-head h2, .card-head h3 { margin: 0; }
+.card-head + .card-head { margin-top: 20px; }
+#grouped > .card-head:first-of-type { margin-top: 20px; }
 .grid { display: grid; gap: 10px 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .fld > span { font-weight: 500; }
