@@ -12,6 +12,7 @@ let SAVED_SORT = "date";      // tri de la liste des simulations enregistrées :
 let SAVED_STATUS_FILTER = ""; // "" = tous, "pending" = propositions en cours, "sold" = dossiers signés
 let COEFF_UNLOCKED = false;   // barème masqué tant que non déverrouillé
 let CATALOG = null;           // catalogue Canon (assets/catalog.json), chargé à la demande
+let CATALOG_META = null;      // { tariffMonth } (assets/catalog-meta.json), chargé à la demande
 let CONFIG_MID = null;        // machine en cours d'édition dans le configurateur
 let CONFIG_DRAFT = null;      // { category, machine, items: { [clé]: {designation,price,qty} } }
 let SHOW_MARGINS = false;     // écran « Marges » (cumul par utilisateur) affiché ?
@@ -253,11 +254,83 @@ function obligatoireGroups(description, allItems) {
     .map((g) => g.split(/\s+OU\s+/i).map((p) => matchDesignation(p.trim(), allItems)).filter(Boolean).map((it) => it.designation))
     .filter((g) => g.length);
 }
-async function openConfigModal(mid) {
-  if (!CATALOG) {
-    try { CATALOG = await (await fetch("assets/catalog.json")).json(); }
-    catch (e) { alert("Impossible de charger le catalogue Canon (assets/catalog.json)."); return; }
+/* Charge le catalogue Canon et son étiquette de mois (assets/catalog-meta.json,
+   ex. { "tariffMonth": "2026-11" }) une seule fois, en cache pour la session. */
+async function ensureCatalog() {
+  if (!CATALOG) CATALOG = await (await fetch("assets/catalog.json")).json();
+  if (!CATALOG_META) {
+    try { CATALOG_META = await (await fetch("assets/catalog-meta.json")).json(); }
+    catch (e) { CATALOG_META = { tariffMonth: "" }; } // absent : pas de suivi de tarif possible
   }
+}
+/* Actualise le prix machine d'une machine configurée via le configurateur si le
+   tarif Canon a changé depuis sa configuration (catalogue réétiqueté d'un mois
+   sur l'autre) — ne recherche que dans le catalogue ACTUEL (pas d'historique
+   des anciens catalogues à conserver). Le loyer proposé au client ne change
+   JAMAIS : c'est la marge qui absorbe l'écart de prix, quel que soit le mode
+   de calcul (`force` = toujours réactualiser, même si le mois n'a pas changé —
+   utilisé à la signature pour appliquer le tarif du mois de signature).
+   Renvoie null si rien à faire, sinon { notFound, marginNegative }. */
+async function refreshMachineTariff(m, state, opts) {
+  opts = opts || {};
+  const cfg = m.machineConfig;
+  if (!cfg || !Array.isArray(cfg.items) || !cfg.items.length) return null;
+  try { await ensureCatalog(); } catch (e) { return null; } // catalogue indisponible : on laisse tel quel
+  const cfgMonth = cfg.tariffMonth || "";
+  const curMonth = (CATALOG_META && CATALOG_META.tariffMonth) || "";
+  if (!curMonth || (!opts.force && cfgMonth === curMonth)) return null; // déjà à jour, ou pas d'étiquette de mois
+  const mach = (CATALOG[cfg.category] || []).find((x) => x.name === cfg.machine);
+  const allItems = mach ? [...mach.engine, ...mach.accessories] : [];
+  const notFound = [];
+  let newTotal = 0;
+  const newItems = cfg.items.map((it) => {
+    const found = allItems.find((x) => x.designation === it.designation);
+    if (!found) notFound.push(it.designation);
+    const price = found ? found.price : it.price; // introuvable (retiré/renommé) : garde l'ancien prix, signale
+    newTotal += price * it.qty;
+    return { ...it, price };
+  });
+  newTotal = Math.round(newTotal * 100) / 100;
+  if (newTotal === num(m.prixMachine) && cfgMonth === curMonth) { m.machineConfig = { ...cfg, tariffMonth: curMonth }; return null; }
+
+  const quotedLoyer = computeMachine(m, state).spLoyerT; // loyer déjà proposé : à préserver
+  m.machineConfig = { ...cfg, items: newItems, tariffMonth: curMonth };
+  m.prixMachine = newTotal;
+
+  if (m.margeMode === "marge") {
+    const rachat = rachatMachine(m).total; // ne dépend pas du prix machine : inchangé
+    const prixMachineEff = num(m.prixMachine) + num(m.derogationMikael);
+    const prixComplet = prixMachineEff + num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait) + num(m.installation);
+    const financedCible = isAchat(state) ? quotedLoyer : financedFromLoyer(state, quotedLoyer);
+    m.marge = financedCible - rachat - prixComplet - num(m.cadeaux);
+  }
+  // mode "loyer" : loyerCible inchangé -> la marge affichée se recalcule déjà
+  // toute seule au prochain rendu (dérivée du prix machine, pas saisie).
+
+  const marginNegative = computeMachine(m, state).margeFinale < 0;
+  return { notFound, marginNegative };
+}
+/* Actualise toutes les machines d'un état (chargement d'une proposition en
+   cours, ou signature) et renvoie un message à afficher, s'il y a lieu. */
+async function refreshStateTariffs(state, opts) {
+  const notFoundAll = [];
+  let anyNegative = false, anyRefreshed = false;
+  for (const m of state.machines || []) {
+    const res = await refreshMachineTariff(m, state, opts);
+    if (!res) continue;
+    anyRefreshed = true;
+    if (res.notFound.length) notFoundAll.push(...res.notFound.map((d) => `${m.proposedModel || "machine"} — ${d}`));
+    if (res.marginNegative) anyNegative = true;
+  }
+  if (!anyRefreshed) return "";
+  const msgs = [];
+  if (anyNegative) msgs.push("Attention, avec l'évolution des tarifs Canon, la marge sur ce dossier est négative. Pense à actualiser le loyer proposé.");
+  if (notFoundAll.length) msgs.push(`Articles introuvables dans le catalogue actuel (prix conservé, à vérifier) : ${notFoundAll.join(", ")}.`);
+  return msgs.join(" ");
+}
+async function openConfigModal(mid) {
+  try { await ensureCatalog(); }
+  catch (e) { alert("Impossible de charger le catalogue Canon (assets/catalog.json)."); return; }
   const m = mById(mid); if (!m) return;
   CONFIG_MID = mid;
   const cfg = m.machineConfig;
@@ -2070,7 +2143,7 @@ document.addEventListener("click", async (e) => {
     case "apply-config": {
       const m = mById(CONFIG_MID); if (!m || !CONFIG_DRAFT) break;
       const items = Object.values(CONFIG_DRAFT.items);
-      m.machineConfig = { category: CONFIG_DRAFT.category, machine: CONFIG_DRAFT.machine, items };
+      m.machineConfig = { category: CONFIG_DRAFT.category, machine: CONFIG_DRAFT.machine, items, tariffMonth: (CATALOG_META && CATALOG_META.tariffMonth) || "" };
       m.prixMachine = configTotal();
       saveState(STATE); closeConfigModal(); renderMachines(); renderResults();
       flash("Prix machine mis à jour depuis le configurateur.");
@@ -2144,7 +2217,11 @@ document.addEventListener("click", async (e) => {
       STATE = normalizeState(JSON.parse(JSON.stringify(s.state)));
       LOADED_SIM_ID = s.id;
       SHOW_MARGINS = false; SHOW_PORTFOLIO = false;
-      saveState(STATE); renderApp(); updateTopbar(); flash("Simulation chargée.");
+      // dossier déjà signé : tarif figé au mois de signature, jamais réactualisé à l'ouverture.
+      const tariffMsg = s.sold ? "" : await refreshStateTariffs(STATE, {});
+      saveState(STATE); renderApp(); updateTopbar();
+      flash("Simulation chargée.");
+      if (tariffMsg) alert(tariffMsg);
       break;
     }
     case "arch-sim": case "unarch-sim": {
@@ -2355,14 +2432,25 @@ document.addEventListener("click", async (e) => {
       const iso = document.getElementById("date-modal-input").value;
       if (!iso) { alert("Merci de choisir une date."); break; }
       const s = loadSims().find((x) => x.id === DATE_MODAL_SIM);
+      let tariffMsg = "";
       if (s && (ADMIN || (s.userId === CURRENT_USER.id && !s.sold))) {
+        const firstSigning = !s.sold; // simple modification de la date d'un dossier déjà signé : pas de ré-actualisation
         s.sold = true; s.soldAt = iso;
         s.signedPeriodicite = document.getElementById("date-modal-periodicite").value === "M" ? "M" : "T";
+        if (firstSigning && s.state) {
+          // Signature : applique le tarif Canon du mois de signature, qui fige le dossier (toujours, même
+          // si le mois du catalogue n'a pas changé depuis la config, pour appliquer explicitement le tarif courant).
+          const st = normalizeState(JSON.parse(JSON.stringify(s.state)));
+          tariffMsg = await refreshStateTariffs(st, { force: true });
+          s.state = st;
+          if (LOADED_SIM_ID === s.id) { STATE = st; saveState(STATE); renderApp(); } // dossier en cours d'édition : reflète l'actualisation à l'écran
+        }
         await Store.putSim(s);
       }
       closeDateModal();
       renderSaved();
       flash("Date de signature enregistrée.");
+      if (tariffMsg) alert(tariffMsg);
       break;
     }
     case "del-sim": {

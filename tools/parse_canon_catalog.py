@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Extrait le catalogue Canon (gammes -> machines -> moteur/accessoires,
 désignation + prix HT + descriptif) du PDF tarifaire fourni par LEVAD, et
-génère assets/catalog.json utilisé par le configurateur du simulateur.
+génère assets/catalog.json (+ assets/catalog-meta.json) utilisés par le
+configurateur du simulateur.
 
 À relancer chaque mois quand LEVAD transmet un PDF tarifaire à jour.
 
@@ -28,12 +29,77 @@ l'ancien format « taux de remise + Prix de Cession HT ») :
 - contrairement à l'édition juillet 2026, le texte n'est plus brouillé
   (plus de police anti-copier/coller côté Canon) : l'extraction directe du
   texte du PDF suffit, aucun OCR n'est nécessaire.
+
+Remise LEVAD : depuis novembre 2026, Canon ne fournit plus de taux de
+remise par ligne dans le PDF (ancien format "juillet 2026", abandonné) —
+seul le Prix base HT (= prix public) est donné. On applique donc nous-
+mêmes une règle fixe, indépendante du PDF, décidée avec LEVAD :
+- machine avec Wi-Fi intégré de base (pas en option) + tous ses
+  accessoires : remise de 23 % sur le prix public.
+- machine où le Wi-Fi ("Wireless LAN board") est une option (carte réseau
+  sans fil en accessoire) : remise de 47 % sur la machine elle-même et les
+  licences de vitesse (ppm), 45 % sur ses accessoires.
+Le Wi-Fi intégré/en option est détecté automatiquement à partir du
+descriptif Canon (voir classify_wifi ci-dessous) ; si c'est ambigu pour un
+modèle (ni accessoire Wi-Fi identifié, ni mention Wi-Fi dans le moteur),
+aucune remise n'est appliquée et le modèle est listé en fin d'exécution
+pour vérification manuelle — mieux vaut un prix public visible (trop haut,
+donc repéré) qu'une remise appliquée au hasard.
 """
 import json
+import os
 import re
 import sys
+import unicodedata
 
 import fitz
+
+WIFI_ACCESSORY_RE = re.compile(r"wireless lan|carte r[ée]seau sans fil|carte wi-?fi|carte wifi", re.I)
+WIFI_MENTION_RE = re.compile(r"wi-?fi|wlan", re.I)
+RATE_WIFI_INCLUDED = 0.23
+RATE_OPTIONAL_ENGINE = 0.47     # machine (imageFORCE/iR-Advance) + licences de vitesse (ppm)
+RATE_OPTIONAL_ACCESSORY = 0.45  # accessoires de ces machines
+
+MONTH_NAMES = {
+    "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6,
+    "juillet": 7, "aout": 8, "septembre": 9, "octobre": 10, "novembre": 11, "decembre": 12,
+}
+
+
+def strip_accents(s):
+    return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
+
+
+def classify_wifi(machine):
+    """True = Wi-Fi inclus de base (23 %) ; False = Wi-Fi en option (47 %/45 %) ;
+    None = ambigu, remise non appliquée (à vérifier à la main)."""
+    has_wifi_accessory = any(
+        WIFI_ACCESSORY_RE.search(it["designation"]) or WIFI_ACCESSORY_RE.search(it.get("description", ""))
+        for it in machine["accessories"]
+    )
+    if has_wifi_accessory:
+        return False
+    if any(WIFI_MENTION_RE.search(it.get("description", "")) for it in machine["engine"]):
+        return True
+    return None
+
+
+def apply_discount(machine, wifi_included):
+    for section, rate in (
+        ("engine", RATE_WIFI_INCLUDED if wifi_included else RATE_OPTIONAL_ENGINE),
+        ("accessories", RATE_WIFI_INCLUDED if wifi_included else RATE_OPTIONAL_ACCESSORY),
+    ):
+        for it in machine[section]:
+            it["price"] = round(it["price"] * (1 - rate), 2)
+
+
+def parse_tariff_month(doc):
+    """Lit « <Mois> <Année> » (ex. "Novembre 2026") sur la page de couverture -> "2026-11"."""
+    if doc.page_count == 0:
+        return ""
+    text = strip_accents(doc[0].get_text()).lower()
+    m = re.search(r"(" + "|".join(MONTH_NAMES) + r")\s+(\d{4})", text)
+    return f"{m.group(2)}-{MONTH_NAMES[m.group(1)]:02d}" if m else ""
 
 CATEGORIES = [
     "OFFICE - IMPRIMANTES LASER",
@@ -185,14 +251,40 @@ def main():
         sys.exit(1)
     src = sys.argv[1]
     out_path = sys.argv[2] if len(sys.argv) > 2 else "assets/catalog.json"
+    meta_path = os.path.join(os.path.dirname(out_path), "catalog-meta.json") if os.path.dirname(out_path) else "catalog-meta.json"
+
+    doc = fitz.open(src)
+    tariff_month = parse_tariff_month(doc)
+    doc.close()
+
     catalog = parse(src)
+
+    ambiguous = []
+    for cat, machines in catalog.items():
+        for m in machines:
+            wifi = classify_wifi(m)
+            m["wifiIncluded"] = wifi
+            if wifi is None:
+                ambiguous.append(f"{cat} / {m['name']}")
+            else:
+                apply_discount(m, wifi)
+
     with open(out_path, "w", encoding="utf8") as f:
         json.dump(catalog, f, ensure_ascii=False, separators=(",", ":"))
+    with open(meta_path, "w", encoding="utf8") as f:
+        json.dump({"tariffMonth": tariff_month}, f, ensure_ascii=False)
+
     total = sum(len(m["engine"]) + len(m["accessories"]) for ms in catalog.values() for m in ms)
     print(f"Catalogue écrit : {out_path}")
+    print(f"Métadonnées écrites : {meta_path} (tariffMonth = {tariff_month or '??? non détecté'})")
     for cat, machines in catalog.items():
         print(f"  {cat} : {len(machines)} machines")
     print(f"Total articles : {total}")
+    if ambiguous:
+        print("\nATTENTION — Wi-Fi ambigu (ni accessoire Wi-Fi, ni mention Wi-Fi au moteur) : AUCUNE remise "
+              "appliquée sur ces modèles, prix publics bruts à vérifier et corriger à la main :")
+        for a in ambiguous:
+            print("  -", a)
 
 
 if __name__ == "__main__":

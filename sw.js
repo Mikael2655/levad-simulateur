@@ -25,6 +25,7 @@ const CORE = [
   "assets/template-telephonie.pptx",
   "assets/logo.png",
   "assets/catalog.json",
+  "assets/catalog-meta.json",
   "manifest.webmanifest",
   "icons/levad-sim-180.png",
   "icons/levad-sim-192.png",

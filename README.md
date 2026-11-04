@@ -156,7 +156,9 @@ js/export-pptx.js   injection dans le gabarit .pptx (JSZip)
 js/app.js           interface & événements
 vendor/             JSZip, ExcelJS (locaux, hors-ligne)
 assets/template.pptx   votre modèle PowerPoint tokenisé
-assets/catalog.json    catalogue Canon (configurateur), extrait du tarif
+assets/catalog.json    catalogue Canon (configurateur), extrait du tarif, remise LEVAD appliquée
+assets/catalog-meta.json  mois du tarif en cours (ex. {"tariffMonth":"2026-11"}) — sert à savoir
+                          si une proposition a été configurée sous un tarif désormais périmé
 tools/prepare_template.py     (re)génère le gabarit PowerPoint
 tools/parse_canon_catalog.py  (re)génère le catalogue Canon depuis le PDF tarifaire
 sw.js, manifest.webmanifest, icon.png
