@@ -184,6 +184,13 @@ async function exportExcel(state, calc) {
   f.value = "LEVAD — 135 Chemin des Bassins 94000 Créteil — 01 70 72 19 40 — contact@levad.fr";
   f.font = { size: 10, italic: true }; f.alignment = center;
 
+  // Zone d'impression explicite (C:K) : sans ça, Excel inclut aussi les
+  // colonnes A/B (marge gauche, larges) et L (marge droite, étroite) dans la
+  // zone imprimée via leur largeur définie — ce qui décale le tableau vers
+  // la gauche une fois centré, la marge gauche (A+B) étant plus large que
+  // la marge droite (L) seule.
+  ws.pageSetup.printArea = `C1:K${row}`;
+
   const buf = await forceA4PageSetup(await wb.xlsx.writeBuffer());
   downloadBlob(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
     fileName(state, "xlsx", "SA-SP"));
