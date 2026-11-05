@@ -1612,17 +1612,19 @@ function svcRowsSideMaint(ent, side) {
     </div>`).join("") + `</div>`;
 }
 
-function locationEntryCard(loc, i) {
-  const loyerLabel = `Loyer proposé ${perShort(STATE)}`;
-  const loyerCalcLabel = `Loyer proposé (calculé) ${perShort(STATE)}`;
-  return `<div class="machine" data-lid="${loc.id}">
-    <div class="machine-head">
-      <strong>Location ${i + 1}</strong>
-      <div class="machine-actions">
-        <button class="btn small" data-action="dup-location" data-lid="${loc.id}">Dupliquer</button>
-        <button class="btn small danger" data-action="del-location" data-lid="${loc.id}" ${STATE.locations.length <= 1 ? "disabled" : ""}>Supprimer</button>
-      </div>
+function locationEntryHead(loc, i) {
+  return `<div class="machine-head">
+    <strong>Location ${i + 1}</strong>
+    <div class="machine-actions">
+      <button class="btn small" data-action="dup-location" data-lid="${loc.id}">Dupliquer</button>
+      <button class="btn small danger" data-action="del-location" data-lid="${loc.id}" ${STATE.locations.length <= 1 ? "disabled" : ""}>Supprimer</button>
     </div>
+  </div>`;
+}
+
+function locationEntryCardSA(loc, i) {
+  return `<div class="machine" data-lid="${loc.id}">
+    ${locationEntryHead(loc, i)}
     <div class="machine-cols">
       <div class="col col-sa">
         <h3>Situation actuelle</h3>
@@ -1642,6 +1644,16 @@ function locationEntryCard(loc, i) {
                  <input type="number" step="any" inputmode="decimal" data-scope="location" data-lid="${loc.id}" data-key="trimRestants" value="${esc(loc.trimRestants)}"></label>`}
         </div>
       </div>
+    </div>
+  </div>`;
+}
+
+function locationEntryCardSP(loc, i) {
+  const loyerLabel = `Loyer proposé ${perShort(STATE)}`;
+  const loyerCalcLabel = `Loyer proposé (calculé) ${perShort(STATE)}`;
+  return `<div class="machine" data-lid="${loc.id}">
+    ${locationEntryHead(loc, i)}
+    <div class="machine-cols">
       <div class="col col-sp">
         <h3>Solution proposée</h3>
         <div class="grid">${locField(loc.id, LOC_SP_MAIN[0])}
@@ -1683,15 +1695,19 @@ function locationEntryCard(loc, i) {
   </div>`;
 }
 
-function maintenanceEntryCard(ent, i) {
-  return `<div class="machine" data-eid="${ent.id}">
-    <div class="machine-head">
-      <strong>Maintenance ${i + 1}</strong>
-      <div class="machine-actions">
-        <button class="btn small" data-action="dup-maintenance" data-eid="${ent.id}">Dupliquer</button>
-        <button class="btn small danger" data-action="del-maintenance" data-eid="${ent.id}" ${STATE.maintenances.length <= 1 ? "disabled" : ""}>Supprimer</button>
-      </div>
+function maintenanceEntryHead(ent, i) {
+  return `<div class="machine-head">
+    <strong>Maintenance ${i + 1}</strong>
+    <div class="machine-actions">
+      <button class="btn small" data-action="dup-maintenance" data-eid="${ent.id}">Dupliquer</button>
+      <button class="btn small danger" data-action="del-maintenance" data-eid="${ent.id}" ${STATE.maintenances.length <= 1 ? "disabled" : ""}>Supprimer</button>
     </div>
+  </div>`;
+}
+
+function maintenanceEntryCardSA(ent, i) {
+  return `<div class="machine" data-eid="${ent.id}">
+    ${maintenanceEntryHead(ent, i)}
     <div class="machine-cols">
       <div class="col col-sa">
         <h3>Situation actuelle</h3>
@@ -1717,6 +1733,14 @@ function maintenanceEntryCard(ent, i) {
           ${svcRowsSideMaint(ent, "sa")}
         </div>
       </div>
+    </div>
+  </div>`;
+}
+
+function maintenanceEntryCardSP(ent, i) {
+  return `<div class="machine" data-eid="${ent.id}">
+    ${maintenanceEntryHead(ent, i)}
+    <div class="machine-cols">
       <div class="col col-sp">
         <h3>Solution proposée</h3>
         <div class="grid">${MAINT_SP_MAIN.map((f) => maintField(ent.id, f)).join("")}</div>
@@ -1748,12 +1772,18 @@ function renderGrouped() {
   el.innerHTML = `
     <label class="fld chk"><input type="checkbox" data-scope="root" data-key="groupedProspect" ${STATE.groupedProspect ? "checked" : ""}>
       <span>Prospect (chez un concurrent) — pour tout le dossier</span></label>
+    <h2 class="sasp-block-title">Situation actuelle</h2>
     <div class="card-head"><h3>Location</h3>
       <button class="btn small" data-action="add-location">＋ Ajouter une location</button></div>
-    <div id="locations">${STATE.locations.map((l, i) => locationEntryCard(l, i)).join("")}</div>
+    <div id="locations-sa">${STATE.locations.map((l, i) => locationEntryCardSA(l, i)).join("")}</div>
     <div class="card-head"><h3>Maintenance</h3>
       <button class="btn small" data-action="add-maintenance">＋ Ajouter une maintenance</button></div>
-    <div id="maintenances">${STATE.maintenances.map((x, i) => maintenanceEntryCard(x, i)).join("")}</div>`;
+    <div id="maintenances-sa">${STATE.maintenances.map((x, i) => maintenanceEntryCardSA(x, i)).join("")}</div>
+    <h2 class="sasp-block-title sasp-block-title-sp">Solution proposée</h2>
+    <div class="card-head"><h3>Location</h3></div>
+    <div id="locations-sp">${STATE.locations.map((l, i) => locationEntryCardSP(l, i)).join("")}</div>
+    <div class="card-head"><h3>Maintenance</h3></div>
+    <div id="maintenances-sp">${STATE.maintenances.map((x, i) => maintenanceEntryCardSP(x, i)).join("")}</div>`;
 }
 
 function renderGroupedResults() {

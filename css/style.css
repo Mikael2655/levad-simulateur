@@ -43,6 +43,8 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .card-head h2, .card-head h3 { margin: 0; }
 .card-head + .card-head { margin-top: 20px; }
 #grouped > .card-head:first-of-type { margin-top: 20px; }
+.sasp-block-title { font-size: 15px; margin: 0 0 14px; padding-bottom: 6px; border-bottom: 2px solid var(--sa-accent); color: var(--sa-accent); }
+.sasp-block-title-sp { margin-top: 28px; border-bottom-color: var(--brand); color: var(--brand); }
 .grid { display: grid; gap: 10px 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .fld > span { font-weight: 500; }
