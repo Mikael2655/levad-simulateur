@@ -69,32 +69,25 @@ async function boot() {
   updateTopbar();
 }
 
+/* Onglet actif : "simulateur" tant qu'aucun écran plein (Marges/Portefeuille/
+   Administration) n'est affiché. */
+function activeNav() {
+  if (SHOW_ADMIN) return "admin";
+  if (SHOW_MARGINS) return "margins";
+  if (SHOW_PORTFOLIO) return "portfolio";
+  return "simulateur";
+}
 function updateTopbar() {
   const chip = document.getElementById("user-chip");
-  const out = document.getElementById("logout-btn");
+  const nav = document.getElementById("main-nav");
+  const userMenu = document.getElementById("user-menu");
   const adminBtn = document.getElementById("admin-btn");
-  const marginsBtn = document.getElementById("margins-btn");
-  const portfolioBtn = document.getElementById("portfolio-btn");
-  if (chip) { chip.textContent = CURRENT_USER ? (CURRENT_USER.name + (CURRENT_USER.isAdmin ? " · admin" : "")) : ""; chip.hidden = !CURRENT_USER; }
-  if (out) out.hidden = !CURRENT_USER;
-  if (adminBtn) {
-    adminBtn.hidden = !(CURRENT_USER && ADMIN);
-    adminBtn.innerHTML = SHOW_ADMIN
-      ? '↩ <span class="btn-label">Simulateur</span>'
-      : '🛠️ <span class="btn-label">Administration</span>';
-  }
-  if (marginsBtn) {
-    marginsBtn.hidden = !CURRENT_USER;
-    marginsBtn.innerHTML = SHOW_MARGINS
-      ? '↩ <span class="btn-label">Simulateur</span>'
-      : '📊 <span class="btn-label">Marges</span>';
-  }
-  if (portfolioBtn) {
-    portfolioBtn.hidden = !CURRENT_USER;
-    portfolioBtn.innerHTML = SHOW_PORTFOLIO
-      ? '↩ <span class="btn-label">Simulateur</span>'
-      : '💼 <span class="btn-label">Portefeuille</span>';
-  }
+  if (chip) chip.textContent = CURRENT_USER ? (CURRENT_USER.name + (CURRENT_USER.isAdmin ? " - Admin" : "")) : "";
+  if (nav) nav.hidden = !CURRENT_USER;
+  if (userMenu) userMenu.hidden = !CURRENT_USER;
+  if (adminBtn) adminBtn.hidden = !(CURRENT_USER && ADMIN);
+  const active = activeNav();
+  document.querySelectorAll(".nav-link").forEach((el) => el.classList.toggle("active", el.dataset.nav === active));
 }
 
 /* Modale de saisie de la date de signature (calendrier + bouton « Aujourd'hui »)
@@ -2244,13 +2237,15 @@ document.addEventListener("click", async (e) => {
       if (STATE.groupedMode) renderGroupedResults(); else renderResults();
       break;
     case "retry-firebase": location.reload(); break;
+    case "show-simulateur":
+      SHOW_MARGINS = false; SHOW_PORTFOLIO = false; SHOW_ADMIN = false;
+      renderApp(); updateTopbar();
+      window.scrollTo(0, 0);
+      break;
     case "toggle-margins":
-      SHOW_MARGINS = !SHOW_MARGINS;
-      if (SHOW_MARGINS) { SHOW_PORTFOLIO = false; SHOW_ADMIN = false; }
-      if (SHOW_MARGINS) {
-        if (ADMIN) { try { await ensureCatalog(); } catch (e) {} } // prix réel (taux réel) dans la marge réelle
-        renderMargins();
-      } else renderApp();
+      SHOW_MARGINS = true; SHOW_PORTFOLIO = false; SHOW_ADMIN = false;
+      if (ADMIN) { try { await ensureCatalog(); } catch (e) {} } // prix réel (taux réel) dans la marge réelle
+      renderMargins();
       updateTopbar();
       window.scrollTo(0, 0);
       break;
@@ -2259,9 +2254,8 @@ document.addEventListener("click", async (e) => {
       window.scrollTo(0, 0);
       break;
     case "toggle-portfolio":
-      SHOW_PORTFOLIO = !SHOW_PORTFOLIO;
-      if (SHOW_PORTFOLIO) { SHOW_MARGINS = false; SHOW_ADMIN = false; }
-      if (SHOW_PORTFOLIO) renderPortfolio(); else renderApp();
+      SHOW_PORTFOLIO = true; SHOW_MARGINS = false; SHOW_ADMIN = false;
+      renderPortfolio();
       updateTopbar();
       window.scrollTo(0, 0);
       break;
@@ -2271,9 +2265,8 @@ document.addEventListener("click", async (e) => {
       break;
     case "toggle-admin":
       if (!ADMIN) break;
-      SHOW_ADMIN = !SHOW_ADMIN;
-      if (SHOW_ADMIN) { SHOW_MARGINS = false; SHOW_PORTFOLIO = false; }
-      if (SHOW_ADMIN) renderAdminScreen(); else renderApp();
+      SHOW_ADMIN = true; SHOW_MARGINS = false; SHOW_PORTFOLIO = false;
+      renderAdminScreen();
       updateTopbar();
       window.scrollTo(0, 0);
       break;
@@ -2281,6 +2274,11 @@ document.addEventListener("click", async (e) => {
       SHOW_ADMIN = false; renderApp(); updateTopbar();
       window.scrollTo(0, 0);
       break;
+    case "toggle-user-menu": {
+      const dd = document.getElementById("user-menu-dropdown"); if (!dd) break;
+      dd.hidden = !dd.hidden;
+      break;
+    }
     case "open-config": await openConfigModal(mid); break;
     case "close-config": closeConfigModal(); break;
     case "cfg-info": {
@@ -2305,7 +2303,12 @@ document.addEventListener("click", async (e) => {
     }
     case "remove-client-logo": STATE.client.logo = ""; saveState(STATE); renderApp(); break;
     case "login": await doLogin(); break;
-    case "logout": logout(); CURRENT_USER = null; ADMIN = false; STATE = null; renderLogin(); updateTopbar(); break;
+    case "logout": {
+      logout(); CURRENT_USER = null; ADMIN = false; STATE = null;
+      const dd = document.getElementById("user-menu-dropdown"); if (dd) dd.hidden = true;
+      renderLogin(); updateTopbar();
+      break;
+    }
     case "new-sim": {
       if (!confirm("Démarrer une nouvelle simulation vierge ? (la saisie en cours non enregistrée sera perdue)")) break;
       openNewSimModal();
@@ -2669,6 +2672,8 @@ document.addEventListener("click", (e) => {
   if (popup && !popup.hidden && !e.target.closest("#cfg-info-popup") && !e.target.closest(".cfg-info-btn")) {
     popup.hidden = true;
   }
+  const dd = document.getElementById("user-menu-dropdown");
+  if (dd && !dd.hidden && !e.target.closest("#user-menu")) dd.hidden = true;
 });
 
 function flash(msg, err) {

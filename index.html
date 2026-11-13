@@ -19,15 +19,24 @@
   <header class="topbar">
     <div class="logo">
       <span class="logo-badge"><img src="assets/logo.png" alt="LEVAD" height="30"></span>
-      <span class="logo-sub">Simulateur</span>
     </div>
+    <nav class="main-nav" id="main-nav" hidden>
+      <button class="nav-link" data-action="show-simulateur" data-nav="simulateur">Simulateur</button>
+      <button class="nav-link" id="portfolio-btn" data-action="toggle-portfolio" data-nav="portfolio">Portefeuille</button>
+      <button class="nav-link" id="margins-btn" data-action="toggle-margins" data-nav="margins">Marges</button>
+      <button class="nav-link" id="admin-btn" data-action="toggle-admin" data-nav="admin" hidden>Administration</button>
+    </nav>
     <div class="topbar-right">
-      <span id="user-chip" class="user-chip" hidden></span>
-      <button id="portfolio-btn" class="btn small" data-action="toggle-portfolio" hidden>💼 <span class="btn-label">Portefeuille</span></button>
-      <button id="margins-btn" class="btn small" data-action="toggle-margins" hidden>📊 <span class="btn-label">Marges</span></button>
-      <button id="admin-btn" class="btn small" data-action="toggle-admin" hidden>🛠️ <span class="btn-label">Administration</span></button>
-      <button id="logout-btn" class="btn small" data-action="logout" hidden>🚪 <span class="btn-label">Déconnexion</span></button>
       <button id="theme-toggle" class="icon-btn" title="Mode clair / sombre" aria-label="Mode clair / sombre">🌙</button>
+      <div class="user-menu" id="user-menu" hidden>
+        <button class="user-menu-btn" id="user-menu-btn" data-action="toggle-user-menu">
+          <span id="user-chip"></span>
+          <span class="user-menu-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
+          <button class="user-menu-item" data-action="logout">🚪 Déconnexion</button>
+        </div>
+      </div>
     </div>
   </header>
 
