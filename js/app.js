@@ -16,6 +16,7 @@ let CATALOG_META = null;      // { tariffMonth } (assets/catalog-meta.json), cha
 let CONFIG_MID = null;        // machine en cours d'édition dans le configurateur
 let CONFIG_DRAFT = null;      // { category, machine, items: { [clé]: {designation,price,qty} } }
 let SHOW_MARGINS = false;     // écran « Marges » (cumul par utilisateur) affiché ?
+let SHOW_ADMIN = false;       // écran « Administration » (utilisateurs + taux de remise Canon) affiché ? admin uniquement
 let MARGINS_USER_FILTER = ""; // admin : userId sélectionné, "" = tous
 let MARGINS_MONTH = "";       // mois consulté ("YYYY-MM"), "" = mois en cours
 let MANUAL_SALE_OPEN = false; // formulaire « vente en saisie libre » ouvert ?
@@ -45,7 +46,8 @@ async function start() {
     if (!CURRENT_USER) return;
     if (SHOW_MARGINS) { renderMargins(); return; }
     if (SHOW_PORTFOLIO) { renderPortfolio(); return; }
-    renderSaved(); if (ADMIN) renderUsers();
+    if (SHOW_ADMIN) { renderAdminScreen(); return; }
+    renderSaved();
   };
   await initAuth();
   await boot();
@@ -70,12 +72,17 @@ async function boot() {
 function updateTopbar() {
   const chip = document.getElementById("user-chip");
   const out = document.getElementById("logout-btn");
-  const usersBtn = document.getElementById("users-btn");
+  const adminBtn = document.getElementById("admin-btn");
   const marginsBtn = document.getElementById("margins-btn");
   const portfolioBtn = document.getElementById("portfolio-btn");
   if (chip) { chip.textContent = CURRENT_USER ? (CURRENT_USER.name + (CURRENT_USER.isAdmin ? " · admin" : "")) : ""; chip.hidden = !CURRENT_USER; }
   if (out) out.hidden = !CURRENT_USER;
-  if (usersBtn) usersBtn.hidden = !(CURRENT_USER && ADMIN);
+  if (adminBtn) {
+    adminBtn.hidden = !(CURRENT_USER && ADMIN);
+    adminBtn.innerHTML = SHOW_ADMIN
+      ? '↩ <span class="btn-label">Simulateur</span>'
+      : '🛠️ <span class="btn-label">Administration</span>';
+  }
   if (marginsBtn) {
     marginsBtn.hidden = !CURRENT_USER;
     marginsBtn.innerHTML = SHOW_MARGINS
@@ -88,14 +95,6 @@ function updateTopbar() {
       ? '↩ <span class="btn-label">Simulateur</span>'
       : '💼 <span class="btn-label">Portefeuille</span>';
   }
-}
-function openUsersModal() {
-  const modal = document.getElementById("users-modal"); if (!modal) return;
-  modal.hidden = false; renderUsers();
-}
-function closeUsersModal() {
-  const modal = document.getElementById("users-modal"); if (!modal) return;
-  modal.hidden = true;
 }
 
 /* Modale de saisie de la date de signature (calendrier + bouton « Aujourd'hui »)
@@ -254,23 +253,72 @@ function obligatoireGroups(description, allItems) {
     .map((g) => g.split(/\s+OU\s+/i).map((p) => matchDesignation(p.trim(), allItems)).filter(Boolean).map((it) => it.designation))
     .filter((g) => g.length);
 }
+/* Le catalogue (assets/catalog.json) ne stocke que le prix public BRUT de
+   chaque article ("pricePublic") + le statut Wi-Fi de la machine
+   ("wifiIncluded"). Le prix effectif (.price = taux commercial, .priceReel
+   = taux réel) est calculé ici, par gamme, à partir des taux réglés dans
+   l'onglet Administration (currentDiscountRates()) — jamais figé dans le
+   fichier, pour pouvoir changer un taux sans régénérer le catalogue. */
+function rateGroupFor(wifiIncluded, isEngine) {
+  const r = currentDiscountRates();
+  return wifiIncluded ? r.wifiIncluded : (isEngine ? r.optionEngine : r.optionAccessory);
+}
+function applyDiscountRate(pricePublic, ratePct) {
+  return Math.round(num(pricePublic) * (1 - num(ratePct) / 100) * 100) / 100;
+}
+function priceCatalogItem(it, wifiIncluded, isEngine) {
+  const group = rateGroupFor(wifiIncluded, isEngine);
+  it.price = applyDiscountRate(it.pricePublic, group.commercial);
+  it.priceReel = applyDiscountRate(it.pricePublic, group.reel);
+}
+/* Recalcule .price/.priceReel de tout le catalogue déjà chargé — à appeler
+   après un changement de taux dans l'onglet Administration pour que le
+   configurateur reflète immédiatement le nouveau taux, sans recharger
+   catalog.json. Si wifiIncluded est ambigu (null, modèle à vérifier), aucune
+   remise n'est appliquée (prix public affiché tel quel). */
+function repriceCatalog() {
+  if (!CATALOG) return;
+  Object.values(CATALOG).forEach((machines) => machines.forEach((mach) => {
+    mach.engine.forEach((it) => priceCatalogItem(it, mach.wifiIncluded, true));
+    mach.accessories.forEach((it) => priceCatalogItem(it, mach.wifiIncluded, false));
+  }));
+}
 /* Charge le catalogue Canon et son étiquette de mois (assets/catalog-meta.json,
    ex. { "tariffMonth": "2026-11" }) une seule fois, en cache pour la session. */
 async function ensureCatalog() {
-  if (!CATALOG) CATALOG = await (await fetch("assets/catalog.json")).json();
+  if (!CATALOG) { CATALOG = await (await fetch("assets/catalog.json")).json(); repriceCatalog(); }
   if (!CATALOG_META) {
     try { CATALOG_META = await (await fetch("assets/catalog-meta.json")).json(); }
     catch (e) { CATALOG_META = { tariffMonth: "" }; } // absent : pas de suivi de tarif possible
   }
 }
+/* Prix réel (taux réel, catalogue courant) d'une machine configurée via le
+   configurateur — pour la marge réelle (Marges / vue Réalité). null si la
+   machine n'a pas de configuration, ou si un article n'y est plus trouvable
+   (pas d'approximation partielle : on préfère retomber sur la valeur du
+   simulateur plutôt qu'un total silencieusement incomplet). */
+function realPriceForMachineConfig(cfg) {
+  if (!cfg || !CATALOG || !Array.isArray(cfg.items) || !cfg.items.length) return null;
+  const mach = (CATALOG[cfg.category] || []).find((x) => x.name === cfg.machine);
+  if (!mach) return null;
+  const allItems = [...mach.engine, ...mach.accessories];
+  let total = 0;
+  for (const it of cfg.items) {
+    const found = allItems.find((x) => x.designation === it.designation);
+    if (!found) return null;
+    total += found.priceReel * it.qty;
+  }
+  return Math.round(total * 100) / 100;
+}
 /* Actualise le prix machine d'une machine configurée via le configurateur si le
-   tarif Canon a changé depuis sa configuration (catalogue réétiqueté d'un mois
-   sur l'autre) — ne recherche que dans le catalogue ACTUEL (pas d'historique
-   des anciens catalogues à conserver). Le loyer proposé au client ne change
-   JAMAIS : c'est la marge qui absorbe l'écart de prix, quel que soit le mode
-   de calcul (`force` = toujours réactualiser, même si le mois n'a pas changé —
-   utilisé à la signature pour appliquer le tarif du mois de signature).
-   Renvoie null si rien à faire, sinon { notFound, marginNegative }. */
+   tarif Canon ou le taux de remise ont changé depuis sa configuration
+   (catalogue réétiqueté d'un mois sur l'autre, ou taux modifié dans
+   l'onglet Administration) — ne recherche que dans le catalogue ACTUEL (pas
+   d'historique des anciens catalogues/taux à conserver). Le loyer proposé
+   au client ne change JAMAIS : c'est la marge qui absorbe l'écart de prix,
+   quel que soit le mode de calcul (`force` = toujours réactualiser, même si
+   rien n'a changé — utilisé à la signature pour appliquer le tarif/taux du
+   mois de signature). Renvoie null si rien à faire, sinon { notFound, marginNegative }. */
 async function refreshMachineTariff(m, state, opts) {
   opts = opts || {};
   const cfg = m.machineConfig;
@@ -278,7 +326,11 @@ async function refreshMachineTariff(m, state, opts) {
   try { await ensureCatalog(); } catch (e) { return null; } // catalogue indisponible : on laisse tel quel
   const cfgMonth = cfg.tariffMonth || "";
   const curMonth = (CATALOG_META && CATALOG_META.tariffMonth) || "";
-  if (!curMonth || (!opts.force && cfgMonth === curMonth)) return null; // déjà à jour, ou pas d'étiquette de mois
+  if (!curMonth) return null; // pas d'étiquette de mois : impossible de juger de la fraîcheur
+  const cfgRatesV = cfg.ratesVersion || 0;
+  const curRatesV = currentDiscountRates().version || 0;
+  const stale = cfgMonth !== curMonth || cfgRatesV !== curRatesV;
+  if (!opts.force && !stale) return null; // déjà à jour
   const mach = (CATALOG[cfg.category] || []).find((x) => x.name === cfg.machine);
   const allItems = mach ? [...mach.engine, ...mach.accessories] : [];
   const notFound = [];
@@ -291,10 +343,10 @@ async function refreshMachineTariff(m, state, opts) {
     return { ...it, price };
   });
   newTotal = Math.round(newTotal * 100) / 100;
-  if (newTotal === num(m.prixMachine) && cfgMonth === curMonth) { m.machineConfig = { ...cfg, tariffMonth: curMonth }; return null; }
+  if (newTotal === num(m.prixMachine) && !stale) { m.machineConfig = { ...cfg, tariffMonth: curMonth, ratesVersion: curRatesV }; return null; }
 
   const quotedLoyer = computeMachine(m, state).spLoyerT; // loyer déjà proposé : à préserver
-  m.machineConfig = { ...cfg, items: newItems, tariffMonth: curMonth };
+  m.machineConfig = { ...cfg, items: newItems, tariffMonth: curMonth, ratesVersion: curRatesV };
   m.prixMachine = newTotal;
 
   if (m.margeMode === "marge") {
@@ -728,7 +780,6 @@ function renderApp() {
   else if (s.groupedMode) { renderGrouped(); renderGroupedResults(); }
   else { renderMachines(); renderResults(); }
   renderAdmin(); renderSaved();
-  if (ADMIN) renderUsers();
   if (readOnly) lockEditArea();
 }
 
@@ -878,7 +929,12 @@ function marginRows() {
       const hasOverride = REAL_MARGIN_FIELDS.some(([k]) => has(k));
       const livraisonRetraitQuoted = num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait);
       const financedReal = has("financedReal") ? num(ov.financedReal) : r.financed;
-      const prixCessionReal = has("prixMachineReal") ? num(ov.prixMachineReal) : r.prixMachineEff;
+      // Défaut non saisi : prix réel = prix public x taux RÉEL (pas le taux
+      // commercial), si la machine a été configurée via le configurateur —
+      // sinon (prix saisi à la main) on retombe sur le prix du simulateur.
+      const prixMachineRealAuto = realPriceForMachineConfig(m.machineConfig);
+      const prixCessionReal = has("prixMachineReal") ? num(ov.prixMachineReal)
+        : (prixMachineRealAuto != null ? prixMachineRealAuto : r.prixMachineEff);
       const logistiqueReal = (has("livraisonReal") ? num(ov.livraisonReal) : livraisonRetraitQuoted)
         + (has("installationReal") ? num(ov.installationReal) : num(m.installation));
       const rachatLocationReal = has("rachatLocationReal") ? num(ov.rachatLocationReal) : r.rachatLocation;
@@ -1006,18 +1062,24 @@ function realMarginForm(sim, mIdx) {
   if (sim.signedPeriodicite === "T" && st.periodicite === "M") st.noMajoration = true;
   const r = computeAll(st).rows[mIdx]; if (!r) return "";
   const livraisonRetraitQuoted = num(m.livraison) + num(m.portageLivraison) + num(m.retrait) + num(m.portageRetrait);
+  // Défaut du prix d'achat machine réel : prix public x taux RÉEL (Administration),
+  // si la machine a été configurée via le configurateur — sinon prix du simulateur.
+  const prixMachineRealAuto = realPriceForMachineConfig(m.machineConfig);
   const quotedFor = {
     financedReal: r.financed, fraisLivraisonReal: r.fraisLivraisonFacturer,
-    prixMachineReal: r.prixMachineEff, livraisonReal: livraisonRetraitQuoted, installationReal: num(m.installation),
+    prixMachineReal: prixMachineRealAuto != null ? prixMachineRealAuto : r.prixMachineEff,
+    livraisonReal: livraisonRetraitQuoted, installationReal: num(m.installation),
     rachatLocationReal: r.rachatLocation, rachatMaintenanceReal: r.rachatMaintenance,
   };
+  const hintLabel = (k) => (k === "prixMachineReal" && prixMachineRealAuto != null) ? "taux réel" : "simulateur";
   const ov = (sim.realOverrides && sim.realOverrides[mIdx]) || {};
   return `<div class="subgrid"><h4>Marge réelle — ${esc(m.proposedModel || "machine")} (${esc(st.client.name || sim.clientName || "—")})</h4>
-    <p class="hint">Laisse un champ vide pour reprendre la valeur du simulateur. Ces montants et la marge réelle
-      qui en découle ne sont jamais visibles par les autres utilisateurs, qui continuent de voir la marge telle
-      qu'ils l'ont saisie.</p>
+    <p class="hint">Laisse un champ vide pour reprendre la valeur du simulateur (ou, pour le prix machine, le
+      taux réel réglé dans l'onglet Administration si la machine vient du configurateur). Ces montants et la
+      marge réelle qui en découle ne sont jamais visibles par les autres utilisateurs, qui continuent de voir
+      la marge telle qu'ils l'ont saisie.</p>
     <div class="grid">
-      ${REAL_MARGIN_FIELDS.map(([k, l]) => `<label class="fld money"><span>${l} <small>(simulateur : ${eur(quotedFor[k])})</small></span>${euroWrap(`<input type="number" step="any" inputmode="decimal" id="rm-${k}" value="${esc(ov[k] !== undefined ? ov[k] : "")}" placeholder="${eur(quotedFor[k])}">`)}</label>`).join("")}
+      ${REAL_MARGIN_FIELDS.map(([k, l]) => `<label class="fld money"><span>${l} <small>(${hintLabel(k)} : ${eur(quotedFor[k])})</small></span>${euroWrap(`<input type="number" step="any" inputmode="decimal" id="rm-${k}" value="${esc(ov[k] !== undefined ? ov[k] : "")}" placeholder="${eur(quotedFor[k])}">`)}</label>`).join("")}
     </div>
     <div class="actions">
       <button class="btn primary small" data-action="save-real-margin" data-sim="${sim.id}" data-midx="${mIdx}">Enregistrer</button>
@@ -1366,8 +1428,8 @@ function renderPortfolio() {
   document.querySelectorAll("textarea.portfolio-autogrow").forEach(autoGrowTextarea);
 }
 
-function renderUsers() {
-  const box = document.getElementById("users-list"); if (!box) return;
+function renderAdminUsersList() {
+  const box = document.getElementById("admin-users-list"); if (!box) return;
   const uf = (u, k, label, extra) => `<label class="fld"><span>${label}</span>
     <input type="text" data-scope="user" data-uid="${u.id}" data-key="${k}" value="${esc(u[k] || "")}" ${extra || ""}></label>`;
   box.innerHTML = loadUsers().map((u) => `
@@ -1386,6 +1448,54 @@ function renderUsers() {
         ${u.id === CURRENT_USER.id ? "" : `<button class="btn small danger" data-action="del-user" data-uid="${u.id}">Supprimer l'utilisateur</button>`}
       </div>
     </div>`).join("");
+}
+
+/* Gammes de remise Canon réglables (onglet Administration) : le taux
+   commercial fixe le prix machine réellement utilisé dans les propositions,
+   le taux réel ne sert qu'à la marge réelle (Marges / vue Réalité). */
+const DISCOUNT_RATE_GROUPS = [
+  ["wifiIncluded", "Wi-Fi intégré de base — machine & accessoires"],
+  ["optionEngine", "Wi-Fi en option — machine & licences de vitesse"],
+  ["optionAccessory", "Wi-Fi en option — accessoires"],
+];
+function renderAdminScreen() {
+  if (!ADMIN) { renderApp(); return; }
+  const rates = currentDiscountRates();
+  document.getElementById("screen").innerHTML = `
+    <section class="card">
+      <div class="card-head"><h2>Administration</h2>
+        <button class="btn ghost small" data-action="close-admin">← Retour au simulateur</button></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Utilisateurs</h2>
+        <button class="btn" data-action="add-user">＋ Créer un utilisateur</button></div>
+      <div id="admin-users-list"></div>
+    </section>
+    <section class="card">
+      <h2>Remises Canon</h2>
+      <p class="muted small">Taux appliqués au prix public du catalogue (assets/catalog.json, qui ne stocke
+        plus que le prix public brut). Le <b>taux commercial</b> fixe le prix machine utilisé partout dans les
+        propositions (configurateur, marge, exports) — c'est celui que Canon te communique avec ton markup. Le
+        <b>taux réel</b> (ton vrai taux, avant ce markup) ne sert qu'à calculer la marge réelle d'un dossier
+        signé, dans l'onglet Marges (vue « Réalité »), et n'est jamais visible des autres utilisateurs. Modifier
+        un taux ici réactualise automatiquement les propositions en cours (prix machine + marge, loyer proposé
+        inchangé) à leur prochaine ouverture ou signature — comme pour une hausse de tarif Canon.</p>
+      <div class="table-wrap"><table class="margins-table">
+        <thead><tr><th>Gamme</th><th>Taux commercial (%)</th><th>Taux réel (%)</th></tr></thead>
+        <tbody>
+          ${DISCOUNT_RATE_GROUPS.map(([key, label]) => `<tr>
+            <td>${esc(label)}</td>
+            <td><input type="number" step="0.01" min="0" max="100" inputmode="decimal" id="rate-${key}-commercial" value="${esc(rates[key].commercial)}"></td>
+            <td><input type="number" step="0.01" min="0" max="100" inputmode="decimal" id="rate-${key}-reel" value="${esc(rates[key].reel)}"></td>
+          </tr>`).join("")}
+        </tbody>
+      </table></div>
+      <div class="actions">
+        <button class="btn primary small" data-action="save-discount-rates">Enregistrer les taux</button>
+        ${rates.updatedAt ? `<span class="muted small">Dernière modification : ${esc(rates.updatedAt)}</span>` : ""}
+      </div>
+    </section>`;
+  renderAdminUsersList();
 }
 
 function renderMachines() {
@@ -2134,11 +2244,13 @@ document.addEventListener("click", async (e) => {
       if (STATE.groupedMode) renderGroupedResults(); else renderResults();
       break;
     case "retry-firebase": location.reload(); break;
-    case "open-users": if (ADMIN) openUsersModal(); break;
     case "toggle-margins":
       SHOW_MARGINS = !SHOW_MARGINS;
-      if (SHOW_MARGINS) SHOW_PORTFOLIO = false;
-      if (SHOW_MARGINS) renderMargins(); else renderApp();
+      if (SHOW_MARGINS) { SHOW_PORTFOLIO = false; SHOW_ADMIN = false; }
+      if (SHOW_MARGINS) {
+        if (ADMIN) { try { await ensureCatalog(); } catch (e) {} } // prix réel (taux réel) dans la marge réelle
+        renderMargins();
+      } else renderApp();
       updateTopbar();
       window.scrollTo(0, 0);
       break;
@@ -2148,7 +2260,7 @@ document.addEventListener("click", async (e) => {
       break;
     case "toggle-portfolio":
       SHOW_PORTFOLIO = !SHOW_PORTFOLIO;
-      if (SHOW_PORTFOLIO) SHOW_MARGINS = false;
+      if (SHOW_PORTFOLIO) { SHOW_MARGINS = false; SHOW_ADMIN = false; }
       if (SHOW_PORTFOLIO) renderPortfolio(); else renderApp();
       updateTopbar();
       window.scrollTo(0, 0);
@@ -2157,7 +2269,18 @@ document.addEventListener("click", async (e) => {
       SHOW_PORTFOLIO = false; renderApp(); updateTopbar();
       window.scrollTo(0, 0);
       break;
-    case "close-users": closeUsersModal(); break;
+    case "toggle-admin":
+      if (!ADMIN) break;
+      SHOW_ADMIN = !SHOW_ADMIN;
+      if (SHOW_ADMIN) { SHOW_MARGINS = false; SHOW_PORTFOLIO = false; }
+      if (SHOW_ADMIN) renderAdminScreen(); else renderApp();
+      updateTopbar();
+      window.scrollTo(0, 0);
+      break;
+    case "close-admin":
+      SHOW_ADMIN = false; renderApp(); updateTopbar();
+      window.scrollTo(0, 0);
+      break;
     case "open-config": await openConfigModal(mid); break;
     case "close-config": closeConfigModal(); break;
     case "cfg-info": {
@@ -2173,7 +2296,8 @@ document.addEventListener("click", async (e) => {
     case "apply-config": {
       const m = mById(CONFIG_MID); if (!m || !CONFIG_DRAFT) break;
       const items = Object.values(CONFIG_DRAFT.items);
-      m.machineConfig = { category: CONFIG_DRAFT.category, machine: CONFIG_DRAFT.machine, items, tariffMonth: (CATALOG_META && CATALOG_META.tariffMonth) || "" };
+      m.machineConfig = { category: CONFIG_DRAFT.category, machine: CONFIG_DRAFT.machine, items,
+        tariffMonth: (CATALOG_META && CATALOG_META.tariffMonth) || "", ratesVersion: currentDiscountRates().version || 0 };
       m.prixMachine = configTotal();
       saveState(STATE); closeConfigModal(); renderMachines(); renderResults();
       flash("Prix machine mis à jour depuis le configurateur.");
@@ -2500,7 +2624,7 @@ document.addEventListener("click", async (e) => {
       const mobile = prompt("Portable (optionnel) :", "") || "";
       const email = prompt("Email (vide = auto prénom+nom) :", "") || "";
       try { await createUser({ username, name, title, phone, mobile, email, password: pw, isAdmin: false });
-        renderUsers(); flash("Utilisateur créé."); }
+        renderAdminUsersList(); flash("Utilisateur créé."); }
       catch (err) { alert(err.message); }
       break;
     }
@@ -2508,7 +2632,7 @@ document.addEventListener("click", async (e) => {
       if (!ADMIN) break;
       const u = getUserById(btn.dataset.uid); if (!u) break;
       if (!confirm(`Supprimer l'utilisateur « ${u.name} » ?`)) break;
-      deleteUser(u.id); renderUsers();
+      deleteUser(u.id); renderAdminUsersList();
       break;
     }
     case "reset-pw": {
@@ -2516,6 +2640,22 @@ document.addEventListener("click", async (e) => {
       const u = getUserById(btn.dataset.uid); if (!u) break;
       const pw = prompt(`Nouveau mot de passe pour « ${u.name} » :`); if (!pw) break;
       await resetUserPassword(u.id, pw); flash("Mot de passe réinitialisé.");
+      break;
+    }
+    case "save-discount-rates": {
+      if (!ADMIN) break;
+      const val = (id) => {
+        const v = num(document.getElementById(id).value);
+        return Math.min(100, Math.max(0, v));
+      };
+      const patch = {};
+      DISCOUNT_RATE_GROUPS.forEach(([key]) => {
+        patch[key] = { commercial: val(`rate-${key}-commercial`), reel: val(`rate-${key}-reel`) };
+      });
+      await saveDiscountRates(patch);
+      repriceCatalog();
+      renderAdminScreen();
+      flash("Taux de remise enregistrés.");
       break;
     }
   }

@@ -7,6 +7,7 @@
 
 const USERS_KEY = "levad_users_v1";
 const SIMS_KEY = "levad_sims_v1";
+const SETTINGS_KEY = "levad_settings_v1";
 const CURRENT_KEY = "levad_current_user_v1";
 
 async function sha256(str) {
@@ -63,6 +64,43 @@ async function resetUserPassword(id, pw) {
 async function updateUserProfile(id, patch) {
   const u = getUserById(id); if (!u) return;
   Object.assign(u, patch); await Store.putUser(u);
+}
+
+/* --- Taux de remise Canon (réservé admin, onglet Administration) ---
+   Deux taux par gamme : "commercial" (celui réellement appliqué aux prix
+   machine dans les propositions — configurateur, marge, exports) et "reel"
+   (le vrai taux LEVAD, avant son propre markup, utilisé uniquement pour la
+   marge réelle d'un dossier signé, onglet Marges / vue Réalité). `version`
+   sert à détecter qu'un taux a changé depuis la configuration d'une machine
+   (même mécanisme que tariffMonth pour une hausse de tarif Canon), afin de
+   réactualiser les propositions en cours au chargement et à la signature. */
+const DISCOUNT_SETTINGS_ID = "canon-discount-rates";
+function defaultDiscountRates() {
+  return {
+    id: DISCOUNT_SETTINGS_ID,
+    wifiIncluded: { commercial: 23, reel: 23 },
+    optionEngine: { commercial: 47, reel: 47 },
+    optionAccessory: { commercial: 45, reel: 45 },
+    version: 0,
+    updatedAt: "",
+  };
+}
+function currentDiscountRates() {
+  const stored = Store.settings.find((x) => x.id === DISCOUNT_SETTINGS_ID);
+  return stored || defaultDiscountRates();
+}
+async function saveDiscountRates(patch) {
+  const cur = currentDiscountRates();
+  const next = {
+    id: DISCOUNT_SETTINGS_ID,
+    wifiIncluded: patch.wifiIncluded,
+    optionEngine: patch.optionEngine,
+    optionAccessory: patch.optionAccessory,
+    version: (cur.version || 0) + 1,
+    updatedAt: new Date().toLocaleString("fr-FR"),
+  };
+  await Store.putSetting(next);
+  return next;
 }
 
 /* --- Brouillon en cours (par utilisateur, local au poste) --- */

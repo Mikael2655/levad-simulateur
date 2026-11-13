@@ -32,19 +32,21 @@ l'ancien format « taux de remise + Prix de Cession HT ») :
 
 Remise LEVAD : depuis novembre 2026, Canon ne fournit plus de taux de
 remise par ligne dans le PDF (ancien format "juillet 2026", abandonné) —
-seul le Prix base HT (= prix public) est donné. On applique donc nous-
-mêmes une règle fixe, indépendante du PDF, décidée avec LEVAD :
-- machine avec Wi-Fi intégré de base (pas en option) + tous ses
-  accessoires : remise de 23 % sur le prix public.
-- machine où le Wi-Fi ("Wireless LAN board") est une option (carte réseau
-  sans fil en accessoire) : remise de 47 % sur la machine elle-même et les
-  licences de vitesse (ppm), 45 % sur ses accessoires.
-Le Wi-Fi intégré/en option est détecté automatiquement à partir du
-descriptif Canon (voir classify_wifi ci-dessous) ; si c'est ambigu pour un
-modèle (ni accessoire Wi-Fi identifié, ni mention Wi-Fi dans le moteur),
-aucune remise n'est appliquée et le modèle est listé en fin d'exécution
-pour vérification manuelle — mieux vaut un prix public visible (trop haut,
-donc repéré) qu'une remise appliquée au hasard.
+seul le Prix base HT (= prix public) est donné. Ce script ne calcule donc
+AUCUNE remise : il écrit le prix public brut de chaque article dans le
+champ "pricePublic", plus la détection Wi-Fi intégré/en option (champ
+"wifiIncluded" par machine, voir classify_wifi ci-dessous). La remise
+(taux commercial + taux réel, par gamme Wi-Fi intégré / Wi-Fi en option
+machine+licences / Wi-Fi en option accessoires) est appliquée par
+l'application elle-même, au moment de l'affichage, à partir des valeurs
+réglées dans l'onglet Administration (modifiables sans regénérer le
+catalogue) — voir currentDiscountRates()/repriceCatalog() dans js/app.js.
+Si le Wi-Fi est ambigu pour un modèle (ni accessoire Wi-Fi identifié, ni
+mention Wi-Fi dans le moteur), wifiIncluded vaut null et le modèle est
+listé en fin d'exécution pour vérification manuelle — l'application
+n'applique alors aucune remise sur ce modèle (prix public affiché tel
+quel, trop haut donc repéré) tant que wifiIncluded n'est pas corrigé à la
+main dans catalog.json.
 """
 import json
 import os
@@ -56,9 +58,6 @@ import fitz
 
 WIFI_ACCESSORY_RE = re.compile(r"wireless lan|carte r[ée]seau sans fil|carte wi-?fi|carte wifi", re.I)
 WIFI_MENTION_RE = re.compile(r"wi-?fi|wlan", re.I)
-RATE_WIFI_INCLUDED = 0.23
-RATE_OPTIONAL_ENGINE = 0.47     # machine (imageFORCE/iR-Advance) + licences de vitesse (ppm)
-RATE_OPTIONAL_ACCESSORY = 0.45  # accessoires de ces machines
 
 MONTH_NAMES = {
     "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6,
@@ -82,15 +81,6 @@ def classify_wifi(machine):
     if any(WIFI_MENTION_RE.search(it.get("description", "")) for it in machine["engine"]):
         return True
     return None
-
-
-def apply_discount(machine, wifi_included):
-    for section, rate in (
-        ("engine", RATE_WIFI_INCLUDED if wifi_included else RATE_OPTIONAL_ENGINE),
-        ("accessories", RATE_WIFI_INCLUDED if wifi_included else RATE_OPTIONAL_ACCESSORY),
-    ):
-        for it in machine[section]:
-            it["price"] = round(it["price"] * (1 - rate), 2)
 
 
 def parse_tariff_month(doc):
@@ -231,8 +221,8 @@ def parse(src):
             desc_rows = group_rows(desc_spans)
             description = " ".join(" ".join(s[3] for s in row["spans"]) for row in desc_rows).strip()
             target = it["target"]
-            if not any(x["designation"] == it["designation"] and x["price"] == it["price"] for x in target):
-                target.append({"designation": it["designation"], "price": it["price"], "description": description})
+            if not any(x["designation"] == it["designation"] and x["pricePublic"] == it["price"] for x in target):
+                target.append({"designation": it["designation"], "pricePublic": it["price"], "description": description})
 
     doc.close()
     out = {}
@@ -266,8 +256,6 @@ def main():
             m["wifiIncluded"] = wifi
             if wifi is None:
                 ambiguous.append(f"{cat} / {m['name']}")
-            else:
-                apply_discount(m, wifi)
 
     with open(out_path, "w", encoding="utf8") as f:
         json.dump(catalog, f, ensure_ascii=False, separators=(",", ":"))
@@ -281,8 +269,9 @@ def main():
         print(f"  {cat} : {len(machines)} machines")
     print(f"Total articles : {total}")
     if ambiguous:
-        print("\nATTENTION — Wi-Fi ambigu (ni accessoire Wi-Fi, ni mention Wi-Fi au moteur) : AUCUNE remise "
-              "appliquée sur ces modèles, prix publics bruts à vérifier et corriger à la main :")
+        print("\nATTENTION — Wi-Fi ambigu (ni accessoire Wi-Fi, ni mention Wi-Fi au moteur) : wifiIncluded=null, "
+              "l'application n'appliquera aucune remise sur ces modèles tant que ce n'est pas corrigé à la main "
+              "dans catalog.json :")
         for a in ambiguous:
             print("  -", a)
 

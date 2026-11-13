@@ -25,26 +25,13 @@
       <span id="user-chip" class="user-chip" hidden></span>
       <button id="portfolio-btn" class="btn small" data-action="toggle-portfolio" hidden>💼 <span class="btn-label">Portefeuille</span></button>
       <button id="margins-btn" class="btn small" data-action="toggle-margins" hidden>📊 <span class="btn-label">Marges</span></button>
-      <button id="users-btn" class="btn small" data-action="open-users" hidden>👥 <span class="btn-label">Utilisateurs</span></button>
+      <button id="admin-btn" class="btn small" data-action="toggle-admin" hidden>🛠️ <span class="btn-label">Administration</span></button>
       <button id="logout-btn" class="btn small" data-action="logout" hidden>🚪 <span class="btn-label">Déconnexion</span></button>
       <button id="theme-toggle" class="icon-btn" title="Mode clair / sombre" aria-label="Mode clair / sombre">🌙</button>
     </div>
   </header>
 
   <main id="screen"></main>
-
-  <div id="users-modal" class="modal-overlay" hidden>
-    <div class="modal-panel">
-      <div class="card-head">
-        <h2>Utilisateurs</h2>
-        <div class="head-actions">
-          <button class="btn" data-action="add-user">＋ Créer un utilisateur</button>
-          <button class="btn ghost small" data-action="close-users">✕ Fermer</button>
-        </div>
-      </div>
-      <div id="users-list"></div>
-    </div>
-  </div>
 
   <div id="config-modal" class="modal-overlay" hidden>
     <div class="modal-panel config-panel">

@@ -12,7 +12,7 @@
 const Store = {
   mode: "local",
   db: null, auth: null, uid: null,
-  users: [], sims: [],           // caches en mémoire (lecture synchrone)
+  users: [], sims: [], settings: [], // caches en mémoire (lecture synchrone)
   onUpdate: null,                // callback de rafraîchissement (temps réel)
   lastError: "",                 // raison d'un repli en local (diagnostic)
 
@@ -43,14 +43,16 @@ const Store = {
   },
 
   async _loadFirebase() {
-    const [us, ss] = await Promise.all([
+    const [us, ss, cs] = await Promise.all([
       this.db.collection("users").get(),
       this.db.collection("simulations").get(),
+      this.db.collection("settings").get(),
     ]);
     this.users = us.docs.map((d) => d.data());
     this.sims = ss.docs.map((d) => d.data());
+    this.settings = cs.docs.map((d) => d.data());
   },
-  _loadLocal() { this.users = read(USERS_KEY); this.sims = read(SIMS_KEY); },
+  _loadLocal() { this.users = read(USERS_KEY); this.sims = read(SIMS_KEY); this.settings = read(SETTINGS_KEY); },
 
   _listen() {
     this.db.collection("users").onSnapshot((s) => {
@@ -59,6 +61,10 @@ const Store = {
     });
     this.db.collection("simulations").onSnapshot((s) => {
       this.sims = s.docs.map((d) => d.data());
+      if (this.onUpdate) this.onUpdate();
+    });
+    this.db.collection("settings").onSnapshot((s) => {
+      this.settings = s.docs.map((d) => d.data());
       if (this.onUpdate) this.onUpdate();
     });
   },
@@ -82,6 +88,11 @@ const Store = {
     this.sims = this.sims.filter((x) => x.id !== id);
     if (this.mode === "firebase") await this.db.collection("simulations").doc(id).delete();
     else write(SIMS_KEY, this.sims);
+  },
+  async putSetting(doc) {
+    upsert(this.settings, doc);
+    if (this.mode === "firebase") await this.db.collection("settings").doc(doc.id).set(clone(doc));
+    else write(SETTINGS_KEY, this.settings);
   },
 };
 

@@ -17,12 +17,13 @@ Aucune donnée n'est envoyée : tout reste dans le navigateur (localStorage).
 ## Comptes & connexion
 
 L'accès est protégé par **identifiant + mot de passe**. **Mikael** est
-l'**administrateur** (mot de passe initial `231912`) : il crée / supprime les
-utilisateurs, réinitialise leurs mots de passe, et **voit toutes les
-simulations** (triées par personne puis par client). Chaque utilisateur ne voit
-que **ses** simulations, peut les **archiver** (mais pas les supprimer) et ne
-peut pas gérer les comptes. Le **profil** de chaque compte (nom, fonction,
-téléphones, email) pré-remplit automatiquement la partie « Commercial ».
+l'**administrateur** : depuis l'onglet **🛠️ Administration** (voir plus bas),
+il crée / supprime les utilisateurs, réinitialise leurs mots de passe, et
+**voit toutes les simulations** (triées par personne puis par client). Chaque
+utilisateur ne voit que **ses** simulations, peut les **archiver** (mais pas
+les supprimer) et ne peut pas gérer les comptes. Le **profil** de chaque
+compte (nom, fonction, téléphones, email) pré-remplit automatiquement la
+partie « Commercial ».
 
 > Par défaut (sans Firebase configuré), comptes et données restent **dans le
 > navigateur de chaque poste**. Une pastille indique le mode : **local (ce
@@ -50,6 +51,38 @@ l'outil retombe automatiquement en mode local.
 > admin sont gérés côté application ; Firestore n'exige qu'une connexion
 > anonyme. Pour un cloisonnement infaillible au niveau de la base, il faudrait
 > de vrais comptes Firebase Auth + Cloud Functions.
+>
+> ⚠️ Si le partage en ligne est déjà activé, re-publiez `firestore.rules`
+> après une mise à jour qui le modifie (ex. ajout de la collection
+> `settings`) : **Firestore → Règles**, collez le contenu du fichier,
+> publiez.
+
+## Administration
+
+Bouton **🛠️ Administration** dans la barre du haut (admin uniquement) :
+
+- **Utilisateurs** : créer / supprimer un commercial, réinitialiser son mot
+  de passe, modifier son profil (nom, fonction, téléphones, email) — reprend
+  l'ancienne fenêtre « Utilisateurs », désormais un onglet à part entière.
+- **Remises Canon** : les taux de remise appliqués au prix public du
+  catalogue (`assets/catalog.json`, qui ne stocke que le prix public brut de
+  chaque article), par gamme :
+  - **Wi-Fi intégré de base** (machine + accessoires) ;
+  - **Wi-Fi en option** — machine & licences de vitesse ;
+  - **Wi-Fi en option** — accessoires.
+
+  Pour chaque gamme, deux taux modifiables à tout moment, sans régénérer le
+  catalogue : le **taux commercial** (celui que Canon communique, avec le
+  markup LEVAD) fixe le prix machine réellement utilisé dans les
+  propositions (configurateur, marge, exports) ; le **taux réel** (le vrai
+  taux LEVAD, avant ce markup) ne sert qu'à calculer la **marge réelle**
+  d'un dossier signé (onglet Marges, vue « Réalité », admin uniquement —
+  jamais visible des autres utilisateurs). Modifier un taux réactualise
+  automatiquement les propositions **en cours** (prix machine + marge, loyer
+  proposé inchangé) à leur prochaine ouverture ou signature, exactement
+  comme pour une hausse de tarif Canon (le mois du tarif en cours est suivi
+  séparément, voir `assets/catalog-meta.json` dans la Structure plus bas) ;
+  les dossiers déjà **signés** restent figés.
 
 ## Saisie
 
@@ -156,7 +189,9 @@ js/export-pptx.js   injection dans le gabarit .pptx (JSZip)
 js/app.js           interface & événements
 vendor/             JSZip, ExcelJS (locaux, hors-ligne)
 assets/template.pptx   votre modèle PowerPoint tokenisé
-assets/catalog.json    catalogue Canon (configurateur), extrait du tarif, remise LEVAD appliquée
+assets/catalog.json    catalogue Canon (configurateur), prix publics bruts — la remise LEVAD
+                        (taux commercial + taux réel, par gamme) est réglée dans l'onglet
+                        Administration et appliquée à l'affichage, pas figée dans le fichier
 assets/catalog-meta.json  mois du tarif en cours (ex. {"tariffMonth":"2026-11"}) — sert à savoir
                           si une proposition a été configurée sous un tarif désormais périmé
 tools/prepare_template.py     (re)génère le gabarit PowerPoint
