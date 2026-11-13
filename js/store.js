@@ -43,14 +43,24 @@ const Store = {
   },
 
   async _loadFirebase() {
-    const [us, ss, cs] = await Promise.all([
+    // users/simulations sont indispensables (toute erreur ici fait basculer en
+    // local, voir init()) ; settings est tolérée en échec (ex. règles Firestore
+    // pas encore republiées après l'ajout de cette collection) pour ne JAMAIS
+    // priver tout le monde de comptes/simulations juste parce que ce réglage,
+    // lui, n'est pas encore accessible.
+    const [us, ss] = await Promise.all([
       this.db.collection("users").get(),
       this.db.collection("simulations").get(),
-      this.db.collection("settings").get(),
     ]);
     this.users = us.docs.map((d) => d.data());
     this.sims = ss.docs.map((d) => d.data());
-    this.settings = cs.docs.map((d) => d.data());
+    try {
+      const cs = await this.db.collection("settings").get();
+      this.settings = cs.docs.map((d) => d.data());
+    } catch (e) {
+      console.error("Collection 'settings' indisponible (règles Firestore à republier ?) :", e);
+      this.settings = [];
+    }
   },
   _loadLocal() { this.users = read(USERS_KEY); this.sims = read(SIMS_KEY); this.settings = read(SETTINGS_KEY); },
 
@@ -63,10 +73,10 @@ const Store = {
       this.sims = s.docs.map((d) => d.data());
       if (this.onUpdate) this.onUpdate();
     });
-    this.db.collection("settings").onSnapshot((s) => {
-      this.settings = s.docs.map((d) => d.data());
-      if (this.onUpdate) this.onUpdate();
-    });
+    this.db.collection("settings").onSnapshot(
+      (s) => { this.settings = s.docs.map((d) => d.data()); if (this.onUpdate) this.onUpdate(); },
+      (e) => console.error("Écoute 'settings' indisponible (règles Firestore à republier ?) :", e)
+    );
   },
 
   async putUser(u) {

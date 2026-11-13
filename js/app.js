@@ -2652,10 +2652,14 @@ document.addEventListener("click", async (e) => {
       DISCOUNT_RATE_GROUPS.forEach(([key]) => {
         patch[key] = { commercial: val(`rate-${key}-commercial`), reel: val(`rate-${key}-reel`) };
       });
-      await saveDiscountRates(patch);
-      repriceCatalog();
-      renderAdminScreen();
-      flash("Taux de remise enregistrés.");
+      try {
+        await saveDiscountRates(patch);
+        repriceCatalog();
+        renderAdminScreen();
+        flash("Taux de remise enregistrés.");
+      } catch (err) {
+        alert("Échec de l'enregistrement (règles Firestore à republier ?) : " + (err && err.message ? err.message : err));
+      }
       break;
     }
   }
