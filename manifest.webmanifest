@@ -1,6 +1,6 @@
 {
   "id": "/",
-  "name": "LEVAD — Simulateur",
+  "name": "Simulateur Levad",
   "short_name": "Simulateur",
   "start_url": ".",
   "display": "standalone",
