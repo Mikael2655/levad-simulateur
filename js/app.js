@@ -2103,9 +2103,20 @@ document.addEventListener("change", (e) => {
     const mach = configMachine();
     const allItems = configAllItems(mach);
     const thisItem = allItems.find((it) => it.designation === desig);
+    // Plusieurs exemplaires de la machine (qté >= 2 sur un article du moteur déjà
+    // coché — base machine ou licence, ex. 2x imageFORCE C3100) : chaque exemplaire
+    // peut avoir sa propre licence / son propre socle, donc on n'empêche plus de
+    // cocher 2 articles par ailleurs déclarés incompatibles (ex. socle simple ET
+    // socle double) — le total reste juste, même si le configurateur ne distingue
+    // pas « quel article va sur quel exemplaire ».
+    const multiUnit = mach ? mach.engine.some((it) => {
+      const sel = CONFIG_DRAFT.items[configItemKey("engine", it.designation)];
+      return sel && num(sel.qty) >= 2;
+    }) : false;
     // incompatibilité déclarée par cet article, ou par un article déjà coché
-    let conflict = thisItem ? incompatibleDesignations(thisItem.description, allItems).find((d) => configCheckedDesigs().includes(d)) : null;
-    if (!conflict) {
+    let conflict = (multiUnit || !thisItem) ? null
+      : incompatibleDesignations(thisItem.description, allItems).find((d) => configCheckedDesigs().includes(d));
+    if (!conflict && !multiUnit) {
       conflict = configCheckedDesigs().find((d) => {
         const other = allItems.find((it) => it.designation === d);
         return other && incompatibleDesignations(other.description, allItems).includes(desig);
@@ -2113,7 +2124,7 @@ document.addEventListener("change", (e) => {
     }
     if (conflict) {
       t.checked = false;
-      alert(`« ${desig} » est incompatible avec « ${conflict} », déjà sélectionné. Décochez-le d'abord si besoin.`);
+      alert(`« ${desig} » est incompatible avec « ${conflict} », déjà sélectionné. Décochez-le d'abord, ou passe la quantité d'un article du moteur (la machine elle-même ou sa licence) à 2 ou plus si tu configures plusieurs exemplaires avec des options différentes.`);
       return;
     }
     CONFIG_DRAFT.items[key] = { designation: desig, price: num(t.dataset.price), qty: 1 };
