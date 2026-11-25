@@ -114,11 +114,17 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .tel-card h2 { color: var(--tel-accent); }
 .tel-card .subgrid h4 { color: var(--tel-accent); }
 .tot.big.tel { border-color: var(--tel-accent); } .tot.big.tel b { color: var(--tel-accent); }
-/* Lignes compactes (lien internet, forfait mobile, matériel) : tout sur une
-   ligne, avec plusieurs groupes par rangée sur les écrans assez larges. */
-.tel-pair-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 14px; margin-bottom: 8px; }
-.tel-pair-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 14px; margin-bottom: 8px; }
-.tel-pair-2 .sp-price-row, .tel-pair-3 .sp-price-row { margin: 0; }
+/* Bouton « ✕ » de suppression d'une ligne (lien internet, forfait mobile,
+   matériel) : aligné avec les champs de saisie, pas étiré comme eux. */
+.tel-row-del { display: flex; align-items: flex-end; flex: 0 0 auto; }
+/* Bloc Système : libellé du système choisi (en rouge, à côté du sélecteur)
+   + champs de saisie à gauche, petit tableau de tarifs à droite. */
+.tel-system-chosen { color: var(--tel-accent); font-weight: 600; }
+.tel-sys-body { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; margin-top: 12px; }
+.tel-sys-fields { display: flex; flex-direction: column; gap: 10px; flex: 1 1 240px; min-width: 220px; }
+.tel-rate-table { border-collapse: collapse; font-size: 11px; flex: 0 0 auto; color: var(--ink); }
+.tel-rate-table th, .tel-rate-table td { border: 1px solid var(--line); padding: 3px 7px; text-align: center; white-space: nowrap; }
+.tel-rate-table thead th { color: var(--muted); font-weight: 600; }
 
 /* Pas de flèches (spinners) dans les champs numériques */
 input[type="number"]::-webkit-outer-spin-button,
@@ -238,7 +244,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .locked-banner { font-size: 13.5px; font-weight: 600; color: var(--neg); background: color-mix(in srgb, var(--neg) 10%, var(--card)); border: 1px solid var(--neg); text-align: center; }
 .machine-cols .col h3 { margin: 0 0 8px; font-size: 14px; color: var(--brand); }
 .fld.wide { grid-column: 1 / -1; }
-.fld.narrow { max-width: 220px; }
+.fld.narrow { max-width: 360px; }
 .subgrid { margin-top: 10px; }
 .subgrid h4 { margin: 6px 0; font-size: 12.5px; color: var(--muted); font-weight: 600; }
 .subgrid h4 small { font-weight: 400; }
@@ -339,8 +345,8 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
 @media (max-width: 680px) {
   .machine-cols { grid-template-columns: 1fr; }
-  .tel-pair-2, .tel-pair-3 { grid-template-columns: 1fr; }
   .sp-price-row { flex-wrap: wrap; }
+  .tel-sys-body { flex-direction: column; }
 
   /* Barre du haut : logo + menu utilisateur sur la 1ère ligne, les onglets
      passent en pleine largeur sur la 2e (plutôt qu'un défilement horizontal

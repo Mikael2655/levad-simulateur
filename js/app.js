@@ -2225,6 +2225,17 @@ document.addEventListener("click", async (e) => {
       if (STATE.maintenances.length <= 1) break;
       STATE.maintenances = STATE.maintenances.filter((x) => x.id !== btn.dataset.eid);
       saveState(STATE); renderGrouped(); renderGroupedResults(); break;
+    case "add-telarr": {
+      const defaults = { connectivites: defaultTelConnectivite, mobiles: defaultTelMobileLine, materiels: defaultTelMateriel };
+      const make = defaults[btn.dataset.arr]; if (!make) break;
+      STATE.telephonie[btn.dataset.arr].push(make());
+      saveState(STATE); renderTelephonie(); break;
+    }
+    case "del-telarr": {
+      const arr = STATE.telephonie[btn.dataset.arr]; if (!arr || arr.length <= 1) break;
+      arr.splice(+btn.dataset.idx, 1);
+      saveState(STATE); renderTelephonie(); break;
+    }
     case "reset":
       if (confirm("Réinitialiser toute la saisie ?")) { STATE = defaultState(); LOADED_SIM_ID = ""; saveState(STATE); renderApp(); } break;
     case "export-xlsx":
