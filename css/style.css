@@ -46,7 +46,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .grid { display: grid; gap: 10px 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .fld > span { font-weight: 500; }
-.fld input, .fld select {
+.fld input, .fld select, .tel-sys-table input {
   font-size: 15px; line-height: 1.3; color: var(--ink); background: var(--field);
   border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; width: 100%;
 }
@@ -63,7 +63,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 :root[data-theme="dark"] .fld select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0L5 6L10 0Z' fill='%239aa79d'/%3E%3C/svg%3E");
 }
-.fld input:focus, .fld select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.fld input:focus, .fld select:focus, .tel-sys-table input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
 .money-wrap { position: relative; }
 .money-wrap input { padding-right: 26px; width: 100%; }
 .money-wrap .euro { position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
@@ -124,16 +124,25 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .tel-pair-2 .sp-price-row, .tel-pair-3 .sp-price-row { margin: 0; }
 /* Bons d'enregistrement / Installation : décollé des articles au-dessus,
    cases de même taille que Rachat/Cadeaux/Marge en dessous (pas de
-   .sp-price-row ici, donc même gabarit que les champs normaux). */
+   .sp-price-row ici, donc même gabarit que les champs normaux). Les 3
+   libellés n'ont pas la même longueur (2 ont une note entre parenthèses) :
+   la note passe toujours sur sa propre ligne (même quand elle tiendrait sur
+   la même ligne que le libellé) pour que les 3 libellés fassent toujours
+   exactement 2 lignes, et que les cases en dessous démarrent au même niveau. */
 .tel-bons-row { margin-top: 18px; }
+.tel-bons-row .fld > span small { display: block; }
 /* Bloc Système : libellé du système choisi (en rouge, à côté du sélecteur)
-   + champs de saisie à gauche, petit tableau de tarifs à droite. */
+   + tableau Quantité / Prix mensuel / FAS (quantité éditable, prix et FAS
+   calculés automatiquement à partir des tarifs — Administration → Tarifs
+   Téléphonie). */
 .tel-system-chosen { color: var(--tel-accent); font-weight: 600; }
-.tel-sys-body { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; margin-top: 12px; }
-.tel-sys-fields { display: flex; flex-direction: column; gap: 10px; flex: 1 1 240px; min-width: 220px; }
-.tel-rate-table { border-collapse: collapse; font-size: 11px; flex: 0 0 auto; color: var(--ink); }
-.tel-rate-table th, .tel-rate-table td { border: 1px solid var(--line); padding: 3px 7px; text-align: center; white-space: nowrap; }
-.tel-rate-table thead th { color: var(--muted); font-weight: 600; }
+.tel-sys-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; margin-top: 12px; }
+.tel-sys-table th { font-size: 11.5px; color: var(--muted); font-weight: 600; text-align: left; padding: 0 10px 4px; }
+.tel-sys-table th:first-child { width: 1%; }
+.tel-sys-table td { padding: 0 10px; }
+.tel-sys-table td:first-child { font-size: 13px; color: var(--muted); white-space: nowrap; width: 1%; }
+.tel-sys-table td:not(:first-child) { width: 33%; }
+.tel-sys-table .ro { text-align: center; }
 
 /* Pas de flèches (spinners) dans les champs numériques */
 input[type="number"]::-webkit-outer-spin-button,
@@ -358,7 +367,8 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 @media (max-width: 680px) {
   .machine-cols { grid-template-columns: 1fr; }
   .sp-price-row { flex-wrap: wrap; }
-  .tel-sys-body { flex-direction: column; }
+  .tel-sys-table { font-size: 12.5px; }
+  .tel-sys-table th, .tel-sys-table td { padding: 0 4px; }
   .tel-pair-2, .tel-pair-3 { grid-template-columns: 1fr; }
 
   /* Barre du haut : logo + menu utilisateur sur la 1ère ligne, les onglets

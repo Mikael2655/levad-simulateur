@@ -5,65 +5,28 @@
    l'écran uniquement (pas d'export Excel/PDF/PowerPoint pour l'instant).
    ============================================================ */
 
-const TEL_MOBILE_FORFAITS = [
-  { label: "5 Go Bouygues 5G", prix: 12 },
-  { label: "5 Go Orange 4G", prix: 11 },
-  { label: "10 Go Bouygues 5G", prix: 13.5 },
-  { label: "10 Go Orange 4G", prix: 13.5 },
-  { label: "30 Go Bouygues 5G", prix: 14.5 },
-  { label: "30 Go Orange 4G", prix: 15 },
-  { label: "50 Go Bouygues 5G", prix: 16.5 },
-  { label: "50 Go Orange 4G", prix: 20 },
-];
-const TEL_MATERIEL_CATALOG = [
-  { label: "Casque filaire mono", prix: 60 },
-  { label: "Casque filaire double", prix: 70 },
-  { label: "Casque sans fil mono", prix: 165 },
-  { label: "Casque sans fil double", prix: 175 },
-  { label: "Fixe T34W", prix: 91 },
-  { label: "Fixe T74W", prix: 164 },
-  { label: "Fixe T87W", prix: 239 },
-  { label: "Sans fil W74P", prix: 110 },
-];
 const TEL_CONNECTIVITE_TYPES = ["FTTH 12 mois", "FTTH 24 mois", "FTTH 36 mois", "FTTO 12 mois", "FTTO 24 mois", "FTTO 36 mois"];
 const TEL_OPERATEURS = ["Alphalink", "Axione", "Bouygues", "Covage", "Eurofiber", "ielo", "IFT - Free", "Nexloop", "Orange", "Prizz Telecom", "SFR"];
-const TEL_GTR_RATE = 43, TEL_SECOURS4G_RATE = 25, TEL_SECOURS5G_RATE = 40;
-const TEL_SDA_PRICE = 1, TEL_MNEMO_PRICE = 15, TEL_PORT_TRUNK_PRICE = 3, TEL_CARTE_SIM_PRICE = 2.5;
-const TEL_BON_1ER_PRICE = 50, TEL_BON_SUIVANT_PRICE = 90;
-const TEL_INSTALL_BASE = 450, TEL_INSTALL_SEUIL = 5, TEL_INSTALL_SUPP = 10;
 
-function telMobilePrix(label) { const f = TEL_MOBILE_FORFAITS.find((x) => x.label === label); return f ? f.prix : 0; }
-function telMaterielPrix(label) { const f = TEL_MATERIEL_CATALOG.find((x) => x.label === label); return f ? f.prix : 0; }
-/* Tarif dégressif par palier d'utilisateurs (Centrex) / lignes simultanées (Trunk). */
-function telCentrexUtilPrix(q) { if (q < 3.5) return 14; if (q < 6.5) return 13; if (q < 10.5) return 12; if (q < 20.5) return 11; return 9; }
-function telTrunkLignesPrix(q) { if (q < 5.5) return 12; if (q < 10.5) return 11; if (q < 20.5) return 10; return 9; }
-/* Petit tableau de rappel des barèmes, affiché à côté des champs de saisie
-   du bloc Système (palier d'utilisateurs/lignes + les 3 autres options). */
-function telRateTableHtml(centrex) {
-  const unitLabel = centrex ? "Utilisateurs" : "Lignes simultanées";
-  const tierFn = centrex ? telCentrexUtilPrix : telTrunkLignesPrix;
-  const tiers = (centrex
-    ? [["1 à 3", 3], ["4 à 6", 6], ["7 à 10", 10], ["11 à 20", 20], ["21 et +", 21]]
-    : [["1 à 5", 5], ["6 à 10", 10], ["11 à 20", 20], ["21 et +", 21]]
-  ).map(([label, q]) => [label, tierFn(q)]);
-  const portFas = centrex ? 0 : TEL_PORT_TRUNK_PRICE;
-  return `<table class="tel-rate-table">
-    <thead><tr><th colspan="2"></th><th>Prix mensuel</th><th>FAS</th></tr></thead>
-    <tbody>
-      ${tiers.map(([label, prix], i) => `<tr>${i === 0 ? `<td rowspan="${tiers.length}">${unitLabel}</td>` : ""}<td>${label}</td><td>${eur(prix)}</td><td>${eur(0)}</td></tr>`).join("")}
-      <tr><td colspan="2">Numéros à porter</td><td>${eur(0)}</td><td>${eur(portFas)}</td></tr>
-      <tr><td colspan="2">Numéro à créer</td><td>${eur(TEL_SDA_PRICE)}</td><td>${eur(0)}</td></tr>
-      <tr><td colspan="2">Numéro mnémo</td><td>${eur(TEL_MNEMO_PRICE)}</td><td>${eur(0)}</td></tr>
-    </tbody>
-  </table>`;
+/* Tous les prix/FAS/paliers ci-dessous sont configurables (onglet Administration →
+   Tarifs Téléphonie) et lus en direct via currentTelRates() — rien n'est jamais figé
+   dans une simulation, donc un changement s'applique immédiatement partout. */
+function telMobilePrix(label) { const f = currentTelRates().mobileForfaits.find((x) => x.label === label); return f ? f.prix : 0; }
+function telMaterielPrix(label) { const f = currentTelRates().materielCatalog.find((x) => x.label === label); return f ? f.prix : 0; }
+/* Tarif dégressif par palier (prix du dernier palier dont `max` n'est pas dépassé ; `max: null` = sans plafond). */
+function telTierPrix(tiers, q) {
+  for (const tier of tiers) { if (tier.max == null || q <= tier.max) return tier.prix; }
+  return tiers.length ? tiers[tiers.length - 1].prix : 0;
 }
-/* Bons d'enregistrement : 1er bon à 50 €, chaque bon suivant à 90 €. */
-function telBonsPrix(qty) { const q = num(qty); return q <= 0 ? 0 : TEL_BON_1ER_PRICE + Math.max(0, q - 1) * TEL_BON_SUIVANT_PRICE; }
-/* Installation : 450 € jusqu'à 5 postes/lignes, +10 €/poste au-delà ; 0 si aucun poste/ligne saisi. */
+function telCentrexUtilPrix(q) { return telTierPrix(currentTelRates().centrexTiers, num(q)); }
+function telTrunkLignesPrix(q) { return telTierPrix(currentTelRates().trunkTiers, num(q)); }
+/* Bons d'enregistrement : 1er bon, puis chaque bon suivant au tarif configuré. */
+function telBonsPrix(qty) { const q = num(qty); const r = currentTelRates(); return q <= 0 ? 0 : r.bon1er + Math.max(0, q - 1) * r.bonSuivant; }
+/* Installation : tarif de base jusqu'au seuil configuré, puis +X€/poste au-delà ; 0 si aucun poste/ligne saisi. */
 function telInstallationPrix(n) {
-  const q = num(n);
+  const q = num(n); const r = currentTelRates();
   if (q <= 0) return 0;
-  return q <= TEL_INSTALL_SEUIL ? TEL_INSTALL_BASE : TEL_INSTALL_BASE + (q - TEL_INSTALL_SEUIL) * TEL_INSTALL_SUPP;
+  return q <= r.installSeuil ? r.installBase : r.installBase + (q - r.installSeuil) * r.installSupp;
 }
 
 function defaultTelConnectivite() { return { type: "", quantite: 0, prix: 0, fas: 0, operateur: "" }; }
@@ -98,22 +61,29 @@ function defaultTelephonie() {
    - Total mensuel tout inclus = location matériel (toujours ramenée au mois) + abonnements mensuels. */
 function computeTelephonie(state) {
   const t = state.telephonie;
+  const rates = currentTelRates();
   const centrex = t.systeme !== "trunk";
   const c = t.centrex, tr = t.trunk;
-
-  const centrexTotal = num(c.utilisateurs) * telCentrexUtilPrix(num(c.utilisateurs))
-    + num(c.sdaACreer) * TEL_SDA_PRICE + num(c.numerosMnemo) * TEL_MNEMO_PRICE;
-  const trunkTotal = num(tr.lignesSimultanees) * telTrunkLignesPrix(num(tr.lignesSimultanees))
-    + num(tr.sdaACreer) * TEL_SDA_PRICE + num(tr.numerosMnemo) * TEL_MNEMO_PRICE;
-  const systemeTotal = centrex ? centrexTotal : trunkTotal; // mensuel
-  const systemeFas = centrex ? 0 : num(tr.numerosAPorter) * TEL_PORT_TRUNK_PRICE; // FAS (porter un numéro est gratuit en Centrex)
+  const sys = centrex ? c : tr;
+  const sysQty = centrex ? num(c.utilisateurs) : num(tr.lignesSimultanees);
+  const sysUnitPrix = centrex ? telCentrexUtilPrix(sysQty) : telTrunkLignesPrix(sysQty);
+  // Détail ligne par ligne du bloc Système (affiché en tableau Quantité/Prix mensuel/FAS) :
+  // porter un numéro est gratuit en Centrex (FAS uniquement en Trunk).
+  const systemeRows = [
+    { label: centrex ? "Utilisateurs" : "Lignes simultanées", qty: sysQty, prixMensuel: sysQty * sysUnitPrix, fas: 0 },
+    { label: "Numéros à porter", qty: num(sys.numerosAPorter), prixMensuel: 0, fas: centrex ? 0 : num(sys.numerosAPorter) * rates.portTrunk },
+    { label: "SDA à créer", qty: num(sys.sdaACreer), prixMensuel: num(sys.sdaACreer) * rates.sda, fas: 0 },
+    { label: "Numéros mnémo", qty: num(sys.numerosMnemo), prixMensuel: num(sys.numerosMnemo) * rates.mnemo, fas: 0 },
+  ];
+  const systemeTotal = systemeRows.reduce((a, row) => a + row.prixMensuel, 0); // mensuel
+  const systemeFas = systemeRows.reduce((a, row) => a + row.fas, 0); // FAS
 
   const connectivites = (t.connectivites || []).map((x) => ({ ...x }));
   const connPrixTotal = connectivites.reduce((a, x) => a + num(x.prix), 0);
   const connFasTotal = connectivites.reduce((a, x) => a + num(x.fas), 0);
-  const gtrTotal = num(t.gtrQty) * TEL_GTR_RATE;
-  const secours4gTotal = num(t.secours4gQty) * TEL_SECOURS4G_RATE;
-  const secours5gTotal = num(t.secours5gQty) * TEL_SECOURS5G_RATE;
+  const gtrTotal = num(t.gtrQty) * rates.gtr;
+  const secours4gTotal = num(t.secours4gQty) * rates.secours4g;
+  const secours5gTotal = num(t.secours5gQty) * rates.secours5g;
   const dataTotal = connPrixTotal + gtrTotal + secours4gTotal + secours5gTotal; // mensuel
   const dataFas = connFasTotal; // FAS
 
@@ -121,7 +91,7 @@ function computeTelephonie(state) {
   const mobileTotal = mobiles.reduce((a, m) => a + m.montant, 0); // mensuel
   // Une carte SIM par ligne mobile commandée : plus de case séparée, déduite des quantités.
   const carteSimQty = mobiles.reduce((a, m) => a + num(m.quantite), 0);
-  const carteSimTotal = carteSimQty * TEL_CARTE_SIM_PRICE; // FAS
+  const carteSimTotal = carteSimQty * rates.carteSim; // FAS
 
   const abonnementsMensuels = systemeTotal + dataTotal + mobileTotal;
   const fas = systemeFas + dataFas + carteSimTotal; // FAS totaux des 3 blocs ci-dessus
@@ -156,7 +126,7 @@ function computeTelephonie(state) {
   const totalMensuel = totalLocationMensuel + abonnementsMensuels;
 
   return {
-    systemeTotal, systemeFas, connectivites, connPrixTotal, connFasTotal, dataFas,
+    systemeTotal, systemeFas, systemeRows, connectivites, connPrixTotal, connFasTotal, dataFas,
     gtrTotal, secours4gTotal, secours5gTotal, dataTotal,
     mobiles, mobileTotal, carteSimQty, carteSimTotal,
     abonnementsMensuels, fas,
@@ -174,8 +144,17 @@ function computeTelephonie(state) {
 function renderTelephonie() {
   const box = document.getElementById("telephonie"); if (!box) return;
   const t = STATE.telephonie;
+  const rates = currentTelRates();
   const centrex = t.systeme !== "trunk";
   const chosenLabel = centrex ? "Centrex / softphonie Lebigo" : "Trunk (matériel conservé avec iPBX)";
+  const pfx = centrex ? "centrex" : "trunk";
+  const sys = centrex ? t.centrex : t.trunk;
+  const sysRowsDef = [
+    { label: centrex ? "Utilisateurs" : "Lignes simultanées", key: `${pfx}.${centrex ? "utilisateurs" : "lignesSimultanees"}`, value: centrex ? sys.utilisateurs : sys.lignesSimultanees },
+    { label: "Numéros à porter", key: `${pfx}.numerosAPorter`, value: sys.numerosAPorter },
+    { label: "SDA à créer", key: `${pfx}.sdaACreer`, value: sys.sdaACreer },
+    { label: "Numéros mnémo", key: `${pfx}.numerosMnemo`, value: sys.numerosMnemo },
+  ];
   box.innerHTML = `
     <section class="card tel-card">
       <h2>Système</h2>
@@ -187,30 +166,18 @@ function renderTelephonie() {
           </select></label>
         <div class="fld"><span>&nbsp;</span><span class="tel-system-chosen">${chosenLabel}</span></div>
       </div>
-      <div class="tel-sys-body">
-        <div class="tel-sys-fields">
-          ${centrex ? `
-            <label class="fld"><span>Utilisateurs</span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.utilisateurs" value="${esc(t.centrex.utilisateurs)}"></label>
-            <label class="fld"><span>Numéros à porter</span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.numerosAPorter" value="${esc(t.centrex.numerosAPorter)}"></label>
-            <label class="fld"><span>SDA à créer</span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.sdaACreer" value="${esc(t.centrex.sdaACreer)}"></label>
-            <label class="fld"><span>Numéros mnémo</span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.numerosMnemo" value="${esc(t.centrex.numerosMnemo)}"></label>
-          ` : `
-            <label class="fld"><span>Lignes simultanées</span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.lignesSimultanees" value="${esc(t.trunk.lignesSimultanees)}"></label>
-            <label class="fld"><span>Numéros à porter</span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.numerosAPorter" value="${esc(t.trunk.numerosAPorter)}"></label>
-            <label class="fld"><span>SDA à créer</span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.sdaACreer" value="${esc(t.trunk.sdaACreer)}"></label>
-            <label class="fld"><span>Numéros mnémo</span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.numerosMnemo" value="${esc(t.trunk.numerosMnemo)}"></label>
-          `}
-        </div>
-        ${telRateTableHtml(centrex)}
-      </div>
+      <table class="tel-sys-table">
+        <thead><tr><th></th><th>Quantité</th><th>Prix mensuel</th><th>FAS</th></tr></thead>
+        <tbody>
+          ${sysRowsDef.map((row, i) => `
+            <tr>
+              <td>${row.label}</td>
+              <td><input type="number" step="1" min="0" data-scope="telephonie" data-key="${row.key}" value="${esc(row.value)}"></td>
+              <td class="ro" id="tel-sys-row-${i}-prix"></td>
+              <td class="ro" id="tel-sys-row-${i}-fas"></td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
       <div class="machine-sum">
         <span>Coût total mensuel : <b id="tel-sys-mensuel"></b></span>
         <span>FAS totaux : <b id="tel-sys-fas"></b></span>
@@ -240,11 +207,11 @@ function renderTelephonie() {
       <button class="btn small" data-action="add-telarr" data-arr="connectivites">＋ Ajouter un lien</button>
       <div class="subgrid"><h4>Options</h4>
         <div class="grid">
-          <label class="fld"><span>GTR 4h 7/24 (quantité) <small>(${eur(TEL_GTR_RATE)} / mois)</small></span>
+          <label class="fld"><span>GTR 4h 7/24 (quantité) <small>(${eur(rates.gtr)} / mois)</small></span>
             <input type="number" step="1" min="0" data-scope="telephonie" data-key="gtrQty" value="${esc(t.gtrQty)}"></label>
-          <label class="fld"><span>Secours 4G illimité (quantité) <small>(${eur(TEL_SECOURS4G_RATE)} / mois)</small></span>
+          <label class="fld"><span>Secours 4G illimité (quantité) <small>(${eur(rates.secours4g)} / mois)</small></span>
             <input type="number" step="1" min="0" data-scope="telephonie" data-key="secours4gQty" value="${esc(t.secours4gQty)}"></label>
-          <label class="fld"><span>Secours 5G illimité (quantité) <small>(${eur(TEL_SECOURS5G_RATE)} / mois)</small></span>
+          <label class="fld"><span>Secours 5G illimité (quantité) <small>(${eur(rates.secours5g)} / mois)</small></span>
             <input type="number" step="1" min="0" data-scope="telephonie" data-key="secours5gQty" value="${esc(t.secours5gQty)}"></label>
         </div>
       </div>
@@ -262,7 +229,7 @@ function renderTelephonie() {
             <label class="fld"><span>Forfait ${i + 1}</span>
               <select data-scope="telarr" data-arr="mobiles" data-idx="${i}" data-field="forfait">
                 <option value="">—</option>
-                ${TEL_MOBILE_FORFAITS.map((f) => `<option value="${esc(f.label)}" ${m.forfait === f.label ? "selected" : ""}>${f.label} (${eur(f.prix)})</option>`).join("")}
+                ${rates.mobileForfaits.map((f) => `<option value="${esc(f.label)}" ${m.forfait === f.label ? "selected" : ""}>${f.label} (${eur(f.prix)})</option>`).join("")}
               </select></label>
             <label class="fld"><span>Quantité</span>
               <input type="number" step="1" min="0" data-scope="telarr" data-arr="mobiles" data-idx="${i}" data-field="quantite" value="${esc(m.quantite)}"></label>
@@ -273,7 +240,7 @@ function renderTelephonie() {
       <button class="btn small" data-action="add-telarr" data-arr="mobiles">＋ Ajouter un forfait</button>
       <div class="machine-sum">
         <span>Coût total mensuel : <b id="tel-mob-mensuel"></b></span>
-        <span>FAS totaux <small>(${eur(TEL_CARTE_SIM_PRICE)} / carte SIM)</small> : <b id="tel-mob-fas"></b></span>
+        <span>FAS totaux <small>(${eur(rates.carteSim)} / carte SIM)</small> : <b id="tel-mob-fas"></b></span>
       </div>
     </section>
 
@@ -285,7 +252,7 @@ function renderTelephonie() {
             <label class="fld"><span>Article ${i + 1}</span>
               <select data-scope="telarr" data-arr="materiels" data-idx="${i}" data-field="type">
                 <option value="">—</option>
-                ${TEL_MATERIEL_CATALOG.map((c) => `<option value="${esc(c.label)}" ${m.type === c.label ? "selected" : ""}>${c.label} (${eur(c.prix)})</option>`).join("")}
+                ${rates.materielCatalog.map((c) => `<option value="${esc(c.label)}" ${m.type === c.label ? "selected" : ""}>${c.label} (${eur(c.prix)})</option>`).join("")}
               </select></label>
             <label class="fld"><span>Quantité</span>
               <input type="number" step="1" min="0" data-scope="telarr" data-arr="materiels" data-idx="${i}" data-field="quantite" value="${esc(m.quantite)}"></label>
@@ -295,10 +262,10 @@ function renderTelephonie() {
       </div>
       <button class="btn small" data-action="add-telarr" data-arr="materiels">＋ Ajouter un article</button>
       <div class="grid tel-bons-row">
-        <label class="fld"><span>Bons d'enregistrement (qté) <small>(${eur(TEL_BON_1ER_PRICE)} le 1er, ${eur(TEL_BON_SUIVANT_PRICE)} les suivants)</small></span>
+        <label class="fld"><span>Bons d'enregistrement (qté) <small>(${eur(rates.bon1er)} le 1er, ${eur(rates.bonSuivant)} les suivants)</small></span>
           <input type="number" step="1" min="0" data-scope="telephonie" data-key="bonsEnregistrement" value="${esc(t.bonsEnregistrement)}"></label>
-        <div class="fld"><span>Bons (calculé)</span><div class="ro" id="tel-bons-calc"></div></div>
-        <div class="fld"><span>Installation <small>(${eur(TEL_INSTALL_BASE)} jusqu'à ${TEL_INSTALL_SEUIL} postes, +${eur(TEL_INSTALL_SUPP)} / poste au-delà)</small></span><div class="ro" id="tel-installation-calc"></div></div>
+        <div class="fld"><span>Bons (calculé)<small>&nbsp;</small></span><div class="ro" id="tel-bons-calc"></div></div>
+        <div class="fld"><span>Installation <small>(${eur(rates.installBase)} jusqu'à ${rates.installSeuil} postes, +${eur(rates.installSupp)} / poste au-delà)</small></span><div class="ro" id="tel-installation-calc"></div></div>
       </div>
       <div class="subgrid"><h4>Financement</h4>
         <div class="grid">
@@ -330,6 +297,10 @@ function renderTelephonie() {
 function renderTelResults() {
   const t = STATE.telephonie; if (!t) return;
   const r = computeTelephonie(STATE);
+  r.systemeRows.forEach((row, i) => {
+    const pEl = document.getElementById(`tel-sys-row-${i}-prix`); if (pEl) pEl.textContent = eur(row.prixMensuel);
+    const fEl = document.getElementById(`tel-sys-row-${i}-fas`); if (fEl) fEl.textContent = eur(row.fas);
+  });
   r.mobiles.forEach((m, i) => {
     const el = document.getElementById("tel-mob-montant-" + i); if (el) el.textContent = eur(m.montant);
   });

@@ -103,5 +103,56 @@ async function saveDiscountRates(patch) {
   return next;
 }
 
+/* --- Tarifs Téléphonie (réservé admin, onglet Administration) ---
+   Tous les prix/FAS/paliers utilisés par le module Téléphonie (js/telephonie.js) :
+   rien n'est jamais figé dans une simulation (ni brouillon ni dossier signé), donc
+   un changement ici se répercute immédiatement, sans mécanisme de "gel"/réactualisation
+   (contrairement aux remises Canon, qui sont figées dans machineConfig au moment du calcul). */
+const TEL_RATES_SETTINGS_ID = "telephonie-rates";
+function defaultTelRates() {
+  return {
+    id: TEL_RATES_SETTINGS_ID,
+    mobileForfaits: [
+      { label: "5 Go Bouygues 5G", prix: 12 },
+      { label: "5 Go Orange 4G", prix: 11 },
+      { label: "10 Go Bouygues 5G", prix: 13.5 },
+      { label: "10 Go Orange 4G", prix: 13.5 },
+      { label: "30 Go Bouygues 5G", prix: 14.5 },
+      { label: "30 Go Orange 4G", prix: 15 },
+      { label: "50 Go Bouygues 5G", prix: 16.5 },
+      { label: "50 Go Orange 4G", prix: 20 },
+    ],
+    materielCatalog: [
+      { label: "Casque filaire mono", prix: 60 },
+      { label: "Casque filaire double", prix: 70 },
+      { label: "Casque sans fil mono", prix: 165 },
+      { label: "Casque sans fil double", prix: 175 },
+      { label: "Fixe T34W", prix: 91 },
+      { label: "Fixe T74W", prix: 164 },
+      { label: "Fixe T87W", prix: 239 },
+      { label: "Sans fil W74P", prix: 110 },
+    ],
+    gtr: 43, secours4g: 25, secours5g: 40,
+    sda: 1, mnemo: 15, portTrunk: 3, carteSim: 2.5,
+    bon1er: 50, bonSuivant: 90,
+    installBase: 450, installSeuil: 5, installSupp: 10,
+    // "max: null" = dernier palier, sans plafond ("et +").
+    centrexTiers: [{ max: 3, prix: 14 }, { max: 6, prix: 13 }, { max: 10, prix: 12 }, { max: 20, prix: 11 }, { max: null, prix: 9 }],
+    trunkTiers: [{ max: 5, prix: 12 }, { max: 10, prix: 11 }, { max: 20, prix: 10 }, { max: null, prix: 9 }],
+    version: 0,
+    updatedAt: "",
+  };
+}
+function currentTelRates() {
+  const stored = Store.settings.find((x) => x.id === TEL_RATES_SETTINGS_ID);
+  return stored || defaultTelRates();
+}
+async function saveTelRates(patch) {
+  const cur = currentTelRates();
+  const next = { ...defaultTelRates(), ...patch, id: TEL_RATES_SETTINGS_ID, version: (cur.version || 0) + 1, updatedAt: new Date().toLocaleString("fr-FR") };
+  await Store.putSetting(next);
+  return next;
+}
+
 /* --- Brouillon en cours (par utilisateur, local au poste) --- */
 function draftKey(uid) { return "levad_draft_" + uid; }

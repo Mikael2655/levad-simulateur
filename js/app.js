@@ -1451,9 +1451,33 @@ const DISCOUNT_RATE_GROUPS = [
   ["optionEngine", "Wi-Fi en option — machine & licences de vitesse"],
   ["optionAccessory", "Wi-Fi en option — accessoires"],
 ];
+/* Tableaux de lignes éditables pour l'admin Tarifs Téléphonie : catalogue
+   (libellé fixe + prix éditable) et paliers (plage dérivée du palier
+   précédent + plafond/prix éditables ; dernier palier = "et +", sans plafond). */
+function telCatalogRowsHtml(items, prefix) {
+  return items.map((it, i) => `<tr>
+    <td>${esc(it.label)}</td>
+    <td><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-${prefix}-${i}" value="${esc(it.prix)}"></td>
+  </tr>`).join("");
+}
+function telTierRowsHtml(tiers, prefix) {
+  let prevMax = 0;
+  return tiers.map((tier, i) => {
+    const isLast = tier.max == null;
+    const label = isLast ? `${prevMax + 1} et +` : `${prevMax + 1} à ${tier.max}`;
+    const row = `<tr>
+      <td>${esc(label)}</td>
+      <td>${isLast ? `<span class="muted small">—</span>` : `<input type="number" step="1" min="${prevMax + 1}" id="tel-rate-${prefix}-max-${i}" value="${esc(tier.max)}">`}</td>
+      <td><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-${prefix}-prix-${i}" value="${esc(tier.prix)}"></td>
+    </tr>`;
+    prevMax = tier.max;
+    return row;
+  }).join("");
+}
 function renderAdminScreen() {
   if (!ADMIN) { renderApp(); return; }
   const rates = currentDiscountRates();
+  const telRates = currentTelRates();
   document.getElementById("screen").innerHTML = `
     <section class="card">
       <div class="card-head"><h2>Administration</h2>
@@ -1486,6 +1510,73 @@ function renderAdminScreen() {
       <div class="actions">
         <button class="btn primary small" data-action="save-discount-rates">Enregistrer les taux</button>
         ${rates.updatedAt ? `<span class="muted small">Dernière modification : ${esc(rates.updatedAt)}</span>` : ""}
+      </div>
+    </section>
+    <section class="card">
+      <h2>Tarifs Téléphonie</h2>
+      <p class="muted small">Tous les prix mensuels, FAS, GTR, bons d'enregistrement, installation et paliers
+        utilisés par le module Téléphonie. Rien n'est jamais figé dans une simulation : une modification ici se
+        répercute immédiatement, dans les calculs comme à l'affichage (brouillons en cours et dossiers déjà
+        signés compris).</p>
+
+      <div class="subgrid"><h4>Forfaits mobile</h4>
+        <div class="table-wrap"><table class="margins-table">
+          <thead><tr><th>Forfait</th><th>Prix (€/mois)</th></tr></thead>
+          <tbody>${telCatalogRowsHtml(telRates.mobileForfaits, "mobile")}</tbody>
+        </table></div>
+      </div>
+
+      <div class="subgrid"><h4>Matériel / location</h4>
+        <div class="table-wrap"><table class="margins-table">
+          <thead><tr><th>Article</th><th>Prix (€)</th></tr></thead>
+          <tbody>${telCatalogRowsHtml(telRates.materielCatalog, "materiel")}</tbody>
+        </table></div>
+      </div>
+
+      <div class="subgrid"><h4>Paliers Centrex (utilisateurs)</h4>
+        <div class="table-wrap"><table class="margins-table">
+          <thead><tr><th>Palier</th><th>Jusqu'à (qté)</th><th>Prix (€/mois)</th></tr></thead>
+          <tbody>${telTierRowsHtml(telRates.centrexTiers, "centrex")}</tbody>
+        </table></div>
+      </div>
+
+      <div class="subgrid"><h4>Paliers Trunk (lignes simultanées)</h4>
+        <div class="table-wrap"><table class="margins-table">
+          <thead><tr><th>Palier</th><th>Jusqu'à (qté)</th><th>Prix (€/mois)</th></tr></thead>
+          <tbody>${telTierRowsHtml(telRates.trunkTiers, "trunk")}</tbody>
+        </table></div>
+      </div>
+
+      <div class="subgrid"><h4>Options & FAS</h4>
+        <div class="grid">
+          <label class="fld"><span>GTR 4h 7/24 (€/mois)</span><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-gtr" value="${esc(telRates.gtr)}"></label>
+          <label class="fld"><span>Secours 4G illimité (€/mois)</span><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-secours4g" value="${esc(telRates.secours4g)}"></label>
+          <label class="fld"><span>Secours 5G illimité (€/mois)</span><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-secours5g" value="${esc(telRates.secours5g)}"></label>
+          <label class="fld"><span>SDA à créer (€/mois)</span><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-sda" value="${esc(telRates.sda)}"></label>
+          <label class="fld"><span>Numéro mnémo (€/mois)</span><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-mnemo" value="${esc(telRates.mnemo)}"></label>
+          <label class="fld"><span>Numéro à porter — Trunk (FAS, €)</span><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-porttrunk" value="${esc(telRates.portTrunk)}"></label>
+          <label class="fld"><span>Carte SIM (FAS, €/carte)</span><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-cartesim" value="${esc(telRates.carteSim)}"></label>
+        </div>
+      </div>
+
+      <div class="subgrid"><h4>Bons d'enregistrement</h4>
+        <div class="grid">
+          <label class="fld"><span>1er bon (€)</span><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-bon1er" value="${esc(telRates.bon1er)}"></label>
+          <label class="fld"><span>Bons suivants (€, chacun)</span><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-bonsuivant" value="${esc(telRates.bonSuivant)}"></label>
+        </div>
+      </div>
+
+      <div class="subgrid"><h4>Installation</h4>
+        <div class="grid">
+          <label class="fld"><span>Forfait de base (€)</span><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-installbase" value="${esc(telRates.installBase)}"></label>
+          <label class="fld"><span>Seuil inclus (postes/lignes)</span><input type="number" step="1" min="0" id="tel-rate-installseuil" value="${esc(telRates.installSeuil)}"></label>
+          <label class="fld"><span>Supplément au-delà (€/poste)</span><input type="number" step="0.01" min="0" inputmode="decimal" id="tel-rate-installsupp" value="${esc(telRates.installSupp)}"></label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary small" data-action="save-tel-rates">Enregistrer les tarifs Téléphonie</button>
+        ${telRates.updatedAt ? `<span class="muted small">Dernière modification : ${esc(telRates.updatedAt)}</span>` : ""}
       </div>
     </section>`;
   renderAdminUsersList();
@@ -2682,6 +2773,36 @@ document.addEventListener("click", async (e) => {
         repriceCatalog();
         renderAdminScreen();
         flash("Taux de remise enregistrés.");
+      } catch (err) {
+        alert("Échec de l'enregistrement (règles Firestore à republier ?) : " + (err && err.message ? err.message : err));
+      }
+      break;
+    }
+    case "save-tel-rates": {
+      if (!ADMIN) break;
+      const valNum = (id, min = 0) => Math.max(min, num(document.getElementById(id).value));
+      try {
+        const cur = currentTelRates();
+        const mobileForfaits = cur.mobileForfaits.map((f, i) => ({ label: f.label, prix: valNum(`tel-rate-mobile-${i}`) }));
+        const materielCatalog = cur.materielCatalog.map((c, i) => ({ label: c.label, prix: valNum(`tel-rate-materiel-${i}`) }));
+        const centrexTiers = cur.centrexTiers.map((tier, i) => ({
+          max: tier.max == null ? null : valNum(`tel-rate-centrex-max-${i}`, 1),
+          prix: valNum(`tel-rate-centrex-prix-${i}`),
+        }));
+        const trunkTiers = cur.trunkTiers.map((tier, i) => ({
+          max: tier.max == null ? null : valNum(`tel-rate-trunk-max-${i}`, 1),
+          prix: valNum(`tel-rate-trunk-prix-${i}`),
+        }));
+        const patchTel = {
+          mobileForfaits, materielCatalog, centrexTiers, trunkTiers,
+          gtr: valNum("tel-rate-gtr"), secours4g: valNum("tel-rate-secours4g"), secours5g: valNum("tel-rate-secours5g"),
+          sda: valNum("tel-rate-sda"), mnemo: valNum("tel-rate-mnemo"), portTrunk: valNum("tel-rate-porttrunk"), carteSim: valNum("tel-rate-cartesim"),
+          bon1er: valNum("tel-rate-bon1er"), bonSuivant: valNum("tel-rate-bonsuivant"),
+          installBase: valNum("tel-rate-installbase"), installSeuil: valNum("tel-rate-installseuil"), installSupp: valNum("tel-rate-installsupp"),
+        };
+        await saveTelRates(patchTel);
+        renderAdminScreen();
+        flash("Tarifs Téléphonie enregistrés.");
       } catch (err) {
         alert("Échec de l'enregistrement (règles Firestore à republier ?) : " + (err && err.message ? err.message : err));
       }
