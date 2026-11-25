@@ -192,21 +192,21 @@ function renderTelephonie() {
           ${centrex ? `
             <label class="fld"><span>Utilisateurs</span>
               <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.utilisateurs" value="${esc(t.centrex.utilisateurs)}"></label>
-            <label class="fld"><span>SDA à créer <small>(${eur(TEL_SDA_PRICE)} / mois)</small></span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.sdaACreer" value="${esc(t.centrex.sdaACreer)}"></label>
-            <label class="fld"><span>Numéros mnémo <small>(${eur(TEL_MNEMO_PRICE)} / mois)</small></span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.numerosMnemo" value="${esc(t.centrex.numerosMnemo)}"></label>
-            <label class="fld"><span>Numéros à porter <small>(gratuit)</small></span>
+            <label class="fld"><span>Numéros à porter</span>
               <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.numerosAPorter" value="${esc(t.centrex.numerosAPorter)}"></label>
+            <label class="fld"><span>SDA à créer</span>
+              <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.sdaACreer" value="${esc(t.centrex.sdaACreer)}"></label>
+            <label class="fld"><span>Numéros mnémo</span>
+              <input type="number" step="1" min="0" data-scope="telephonie" data-key="centrex.numerosMnemo" value="${esc(t.centrex.numerosMnemo)}"></label>
           ` : `
             <label class="fld"><span>Lignes simultanées</span>
               <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.lignesSimultanees" value="${esc(t.trunk.lignesSimultanees)}"></label>
-            <label class="fld"><span>SDA à créer <small>(${eur(TEL_SDA_PRICE)} / mois)</small></span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.sdaACreer" value="${esc(t.trunk.sdaACreer)}"></label>
-            <label class="fld"><span>Numéros mnémo <small>(${eur(TEL_MNEMO_PRICE)} / mois)</small></span>
-              <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.numerosMnemo" value="${esc(t.trunk.numerosMnemo)}"></label>
-            <label class="fld"><span>Numéros à porter <small>(FAS ${eur(TEL_PORT_TRUNK_PRICE)} / numéro)</small></span>
+            <label class="fld"><span>Numéros à porter</span>
               <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.numerosAPorter" value="${esc(t.trunk.numerosAPorter)}"></label>
+            <label class="fld"><span>SDA à créer</span>
+              <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.sdaACreer" value="${esc(t.trunk.sdaACreer)}"></label>
+            <label class="fld"><span>Numéros mnémo</span>
+              <input type="number" step="1" min="0" data-scope="telephonie" data-key="trunk.numerosMnemo" value="${esc(t.trunk.numerosMnemo)}"></label>
           `}
         </div>
         ${telRateTableHtml(centrex)}
@@ -221,7 +221,7 @@ function renderTelephonie() {
       <h2>Lien internet</h2>
       ${t.connectivites.map((cn, i) => `
         <div class="grid sp-price-row">
-          <label class="fld"><span>Type${t.connectivites.length > 1 ? ` (ligne ${i + 1})` : ""}</span>
+          <label class="fld"><span>Lien ${i + 1}</span>
             <select data-scope="telarr" data-arr="connectivites" data-idx="${i}" data-field="type">
               <option value="">—</option>
               ${TEL_CONNECTIVITE_TYPES.map((ty) => `<option value="${ty}" ${cn.type === ty ? "selected" : ""}>${ty}</option>`).join("")}
@@ -256,18 +256,20 @@ function renderTelephonie() {
 
     <section class="card tel-card">
       <h2>Forfait mobile</h2>
-      ${t.mobiles.map((m, i) => `
-        <div class="grid sp-price-row tel-item-row">
-          <label class="fld"><span>Forfait${t.mobiles.length > 1 ? ` (ligne ${i + 1})` : ""}</span>
-            <select data-scope="telarr" data-arr="mobiles" data-idx="${i}" data-field="forfait">
-              <option value="">—</option>
-              ${TEL_MOBILE_FORFAITS.map((f) => `<option value="${esc(f.label)}" ${m.forfait === f.label ? "selected" : ""}>${f.label} (${eur(f.prix)})</option>`).join("")}
-            </select></label>
-          <label class="fld"><span>Quantité</span>
-            <input type="number" step="1" min="0" data-scope="telarr" data-arr="mobiles" data-idx="${i}" data-field="quantite" value="${esc(m.quantite)}"></label>
-          <div class="fld"><span>Montant</span><div class="ro" id="tel-mob-montant-${i}"></div></div>
-          <div class="tel-row-del"><button class="btn small danger" data-action="del-telarr" data-arr="mobiles" data-idx="${i}" ${t.mobiles.length <= 1 ? "disabled" : ""}>✕</button></div>
-        </div>`).join("")}
+      <div class="tel-pair-2">
+        ${t.mobiles.map((m, i) => `
+          <div class="grid sp-price-row tel-item-row">
+            <label class="fld"><span>Forfait ${i + 1}</span>
+              <select data-scope="telarr" data-arr="mobiles" data-idx="${i}" data-field="forfait">
+                <option value="">—</option>
+                ${TEL_MOBILE_FORFAITS.map((f) => `<option value="${esc(f.label)}" ${m.forfait === f.label ? "selected" : ""}>${f.label} (${eur(f.prix)})</option>`).join("")}
+              </select></label>
+            <label class="fld"><span>Quantité</span>
+              <input type="number" step="1" min="0" data-scope="telarr" data-arr="mobiles" data-idx="${i}" data-field="quantite" value="${esc(m.quantite)}"></label>
+            <div class="fld"><span>Montant</span><div class="ro" id="tel-mob-montant-${i}"></div></div>
+            <div class="tel-row-del"><button class="btn small danger" data-action="del-telarr" data-arr="mobiles" data-idx="${i}" ${t.mobiles.length <= 1 ? "disabled" : ""}>✕</button></div>
+          </div>`).join("")}
+      </div>
       <button class="btn small" data-action="add-telarr" data-arr="mobiles">＋ Ajouter un forfait</button>
       <div class="machine-sum">
         <span>Coût total mensuel : <b id="tel-mob-mensuel"></b></span>
@@ -277,24 +279,26 @@ function renderTelephonie() {
 
     <section class="card tel-card">
       <h2>Matériel / location</h2>
-      ${t.materiels.map((m, i) => `
-        <div class="grid sp-price-row tel-item-row">
-          <label class="fld"><span>Article${t.materiels.length > 1 ? ` ${i + 1}` : ""}</span>
-            <select data-scope="telarr" data-arr="materiels" data-idx="${i}" data-field="type">
-              <option value="">—</option>
-              ${TEL_MATERIEL_CATALOG.map((c) => `<option value="${esc(c.label)}" ${m.type === c.label ? "selected" : ""}>${c.label} (${eur(c.prix)})</option>`).join("")}
-            </select></label>
-          <label class="fld"><span>Quantité</span>
-            <input type="number" step="1" min="0" data-scope="telarr" data-arr="materiels" data-idx="${i}" data-field="quantite" value="${esc(m.quantite)}"></label>
-          <div class="fld"><span>Montant</span><div class="ro" id="tel-mat-montant-${i}"></div></div>
-          <div class="tel-row-del"><button class="btn small danger" data-action="del-telarr" data-arr="materiels" data-idx="${i}" ${t.materiels.length <= 1 ? "disabled" : ""}>✕</button></div>
-        </div>`).join("")}
+      <div class="tel-pair-3">
+        ${t.materiels.map((m, i) => `
+          <div class="grid sp-price-row tel-item-row">
+            <label class="fld"><span>Article ${i + 1}</span>
+              <select data-scope="telarr" data-arr="materiels" data-idx="${i}" data-field="type">
+                <option value="">—</option>
+                ${TEL_MATERIEL_CATALOG.map((c) => `<option value="${esc(c.label)}" ${m.type === c.label ? "selected" : ""}>${c.label} (${eur(c.prix)})</option>`).join("")}
+              </select></label>
+            <label class="fld"><span>Quantité</span>
+              <input type="number" step="1" min="0" data-scope="telarr" data-arr="materiels" data-idx="${i}" data-field="quantite" value="${esc(m.quantite)}"></label>
+            <div class="fld"><span>Montant</span><div class="ro" id="tel-mat-montant-${i}"></div></div>
+            <div class="tel-row-del"><button class="btn small danger" data-action="del-telarr" data-arr="materiels" data-idx="${i}" ${t.materiels.length <= 1 ? "disabled" : ""}>✕</button></div>
+          </div>`).join("")}
+      </div>
       <button class="btn small" data-action="add-telarr" data-arr="materiels">＋ Ajouter un article</button>
-      <div class="grid sp-price-row">
+      <div class="grid tel-bons-row">
         <label class="fld"><span>Bons d'enregistrement (qté) <small>(${eur(TEL_BON_1ER_PRICE)} le 1er, ${eur(TEL_BON_SUIVANT_PRICE)} les suivants)</small></span>
           <input type="number" step="1" min="0" data-scope="telephonie" data-key="bonsEnregistrement" value="${esc(t.bonsEnregistrement)}"></label>
         <div class="fld"><span>Bons (calculé)</span><div class="ro" id="tel-bons-calc"></div></div>
-        <div class="fld"><span>Installation (calculée) <small>(${eur(TEL_INSTALL_BASE)} jusqu'à ${TEL_INSTALL_SEUIL} postes, +${eur(TEL_INSTALL_SUPP)} / poste au-delà)</small></span><div class="ro" id="tel-installation-calc"></div></div>
+        <div class="fld"><span>Installation <small>(${eur(TEL_INSTALL_BASE)} jusqu'à ${TEL_INSTALL_SEUIL} postes, +${eur(TEL_INSTALL_SUPP)} / poste au-delà)</small></span><div class="ro" id="tel-installation-calc"></div></div>
       </div>
       <div class="subgrid"><h4>Financement</h4>
         <div class="grid">
@@ -352,10 +356,16 @@ function renderTelResults() {
     <h2>Synthèse Téléphonie</h2>
     <div class="totals">
       <div class="tot"><span>Abonnements</span><b>${eur(r.abonnementsMensuels)}</b>
-        <small class="tot-detail">Système : ${eur(r.systemeTotal)} · Lien internet : ${eur(r.dataTotal)} · Mobile : ${eur(r.mobileTotal)}</small></div>
+        <small class="tot-detail">Système : ${eur(r.systemeTotal)}</small>
+        <small class="tot-detail">Lien internet : ${eur(r.dataTotal)}</small>
+        <small class="tot-detail">Mobile : ${eur(r.mobileTotal)}</small></div>
       <div class="tot"><span>Matériel <small>(en location)</small></span><b>${eur(r.totalLocation)} <small class="unit">${perShort(STATE)}</small></b>
-        <small class="tot-detail">Matériel : ${eur(r.materielDisplay)} · Installation : ${eur(r.installation)} · FAS : ${eur(r.fas)} · Rachat : ${eur(r.rachat)} · Cadeau : ${eur(r.cadeaux)} · Marge : ${eur(r.marge)}</small>
-        <small class="tot-detail">TOTAL : ${eur(r.financedBase)}</small></div>
+        <small class="tot-detail tel-synth-grid">
+          <span>Matériel : ${eur(r.materielDisplay)}</span><span>Installation : ${eur(r.installation)}</span>
+          <span>FAS : ${eur(r.fas)}</span><span>Rachat : ${eur(r.rachat)}</span>
+          <span>Cadeau : ${eur(r.cadeaux)}</span><span>Marge : ${eur(r.marge)}</span>
+        </small>
+        <small class="tot-detail">TOTAL (avec marge) : ${eur(r.financed)}</small></div>
       <div class="tot big tel"><span>Total mensuel tout inclus</span><b>${eur(r.totalMensuel)}</b></div>
     </div>`;
 }

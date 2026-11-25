@@ -117,6 +117,15 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 /* Bouton « ✕ » de suppression d'une ligne (lien internet, forfait mobile,
    matériel) : aligné avec les champs de saisie, pas étiré comme eux. */
 .tel-row-del { display: flex; align-items: flex-end; flex: 0 0 auto; }
+/* Lignes compactes (forfait mobile, matériel) : comme avant, plusieurs
+   articles par rangée sur les écrans assez larges. */
+.tel-pair-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 14px; margin-bottom: 8px; }
+.tel-pair-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 14px; margin-bottom: 8px; }
+.tel-pair-2 .sp-price-row, .tel-pair-3 .sp-price-row { margin: 0; }
+/* Bons d'enregistrement / Installation : décollé des articles au-dessus,
+   cases de même taille que Rachat/Cadeaux/Marge en dessous (pas de
+   .sp-price-row ici, donc même gabarit que les champs normaux). */
+.tel-bons-row { margin-top: 18px; }
 /* Bloc Système : libellé du système choisi (en rouge, à côté du sélecteur)
    + champs de saisie à gauche, petit tableau de tarifs à droite. */
 .tel-system-chosen { color: var(--tel-accent); font-weight: 600; }
@@ -287,6 +296,9 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .tot small { color: var(--muted); }
 .tot b small.unit { font-size: 13px; font-weight: 400; }
 .tot small.tot-detail { display: block; margin-top: 6px; font-size: 11.5px; }
+/* 2 éléments par ligne (plutôt qu'un seul fil "·"), pour que les montants
+   (ex. "Marge : 1 500,00 €") ne soient jamais coupés faute de place. */
+.tot small.tot-detail.tel-synth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 8px; text-align: left; }
 .tot.big.pos { border-color: var(--pos); } .tot.big.pos b { color: var(--pos); }
 .tot.big.neg { border-color: var(--neg); } .tot.big.neg b { color: var(--neg); }
 
@@ -347,6 +359,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   .machine-cols { grid-template-columns: 1fr; }
   .sp-price-row { flex-wrap: wrap; }
   .tel-sys-body { flex-direction: column; }
+  .tel-pair-2, .tel-pair-3 { grid-template-columns: 1fr; }
 
   /* Barre du haut : logo + menu utilisateur sur la 1ère ligne, les onglets
      passent en pleine largeur sur la 2e (plutôt qu'un défilement horizontal
