@@ -547,6 +547,11 @@ function locById(id) { return (STATE.locations || []).find((l) => l.id === id); 
 function maintById(id) { return (STATE.maintenances || []).find((e) => e.id === id); }
 function getPath(o, p) { return p.split(".").reduce((a, k) => (a ? a[k] : undefined), o); }
 function setPath(o, p, v) { const a = p.split("."); const l = a.pop(); a.reduce((x, k) => x[k], o)[l] = v; }
+/* Résout un chemin pointé (ex. "connectivites", ou "sa.abonnements.items")
+   vers le tableau correspondant dans STATE.telephonie — utilisé par
+   add-telarr/del-telarr et le scope "telarr" pour les tableaux imbriqués
+   (listes libres de la SA) comme pour les tableaux de 1er niveau existants. */
+function telArrByPath(path) { return path.split(".").reduce((o, k) => o && o[k], STATE.telephonie); }
 
 /* Charge le logo client depuis un fichier, le redimensionne (max 500 px de
    large) et le stocke en data URL PNG — évite de gonfler le stockage
@@ -2083,7 +2088,7 @@ document.addEventListener("input", (e) => {
         .forEach((el) => { if (el !== t) el.value = t.value; });
     }
   } else if (scope === "telarr") {
-    const arr = STATE.telephonie[t.dataset.arr];
+    const arr = telArrByPath(t.dataset.arr);
     const item = arr && arr[+t.dataset.idx];
     if (item) item[t.dataset.field] = val;
   } else if (scope === "root") {
@@ -2242,6 +2247,14 @@ document.addEventListener("change", (e) => {
     if (msgs.length) alert(`Obligatoire avec « ${desig} » — ${msgs.join(" · ")}.`);
     return;
   }
+  if (t.dataset && t.dataset.scope === "telephonie" && t.type === "checkbox") {
+    // case à cocher scope="telephonie" (ex. rachat SA Abonnements/Maintenance) :
+    // gérée ici, avant le filtre "SELECT uniquement" ci-dessous qui ne concerne
+    // que les <select> scope="telephonie" (système, mode marge/loyer…).
+    setPath(STATE, `telephonie.${t.dataset.key}`, t.checked);
+    saveState(STATE); renderTelephonie();
+    return;
+  }
   if (t.tagName !== "SELECT") return;
   if (t.dataset.scope === "root") {
     STATE[t.dataset.key] = t.dataset.key === "durationTrim" ? parseInt(t.value, 10) : t.value;
@@ -2271,10 +2284,11 @@ document.addEventListener("change", (e) => {
     const ent = maintById(t.dataset.eid); if (ent) ent[t.dataset.key] = t.value;
     saveState(STATE); renderGrouped(); renderGroupedResults(); // bascule trimestres restants
   } else if (t.dataset.scope === "telephonie") {
-    setPath(STATE, `telephonie.${t.dataset.key}`, t.value);
-    saveState(STATE); renderTelephonie(); // système (Centrex/Trunk) ou mode marge/loyer : rafraîchit les champs affichés
+    const v = t.type === "checkbox" ? t.checked : t.value;
+    setPath(STATE, `telephonie.${t.dataset.key}`, v);
+    saveState(STATE); renderTelephonie(); // système (Centrex/Trunk), mode marge/loyer, bascule rachat SA… : rafraîchit les champs affichés
   } else if (t.dataset.scope === "telarr") {
-    const arr = STATE.telephonie[t.dataset.arr];
+    const arr = telArrByPath(t.dataset.arr);
     const item = arr && arr[+t.dataset.idx];
     if (item) item[t.dataset.field] = t.value;
     saveState(STATE); renderTelResults();
@@ -2317,13 +2331,17 @@ document.addEventListener("click", async (e) => {
       STATE.maintenances = STATE.maintenances.filter((x) => x.id !== btn.dataset.eid);
       saveState(STATE); renderGrouped(); renderGroupedResults(); break;
     case "add-telarr": {
-      const defaults = { connectivites: defaultTelConnectivite, mobiles: defaultTelMobileLine, materiels: defaultTelMateriel };
+      const defaults = {
+        connectivites: defaultTelConnectivite, mobiles: defaultTelMobileLine, materiels: defaultTelMateriel,
+        "sa.abonnements.items": defaultTelSaItem, "sa.maintenance.items": defaultTelSaItem,
+      };
       const make = defaults[btn.dataset.arr]; if (!make) break;
-      STATE.telephonie[btn.dataset.arr].push(make());
+      const arr = telArrByPath(btn.dataset.arr); if (!arr) break;
+      arr.push(make());
       saveState(STATE); renderTelephonie(); break;
     }
     case "del-telarr": {
-      const arr = STATE.telephonie[btn.dataset.arr]; if (!arr || arr.length <= 1) break;
+      const arr = telArrByPath(btn.dataset.arr); if (!arr || arr.length <= 1) break;
       arr.splice(+btn.dataset.idx, 1);
       saveState(STATE); renderTelephonie(); break;
     }
